@@ -1,0 +1,1 @@
+Little plugin for clear DOS executables
