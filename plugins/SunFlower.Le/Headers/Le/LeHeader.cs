@@ -38,7 +38,7 @@ public struct LeHeader
     public const ushort LeOsWin386 = 4;
     
     [MarshalAs(UnmanagedType.U2)]
-    public ushort LE_VersionMajor;           // Module version.
+    public ushort LE_VersionMajor;           // Module version
     [MarshalAs(UnmanagedType.U2)]
     public ushort LE_VersionMinor;
     

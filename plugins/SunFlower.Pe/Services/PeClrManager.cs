@@ -12,7 +12,7 @@ namespace SunFlower.Pe.Services;
 public class PeClrManager(FileSectionsInfo info, string path) : DirectoryManager(info), IManager
 {
     private readonly FileSectionsInfo _info = info;
-    public Cor20Header Cor20Header { get; private set; } = new();
+    public Cor20Header Cor20Header { get; private set; }
     /// <summary>
     /// Entry Point
     /// </summary>

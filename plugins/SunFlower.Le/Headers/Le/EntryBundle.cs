@@ -3,7 +3,7 @@
 /// <summary>
 /// EntryTables looks like collection of bundles which
 /// generalize or group entries by common characteristics.
-///
+/// 
 /// |---------------------|
 /// | only 32-bit entries |
 /// | only UNUSED 32-bit  |
@@ -18,6 +18,7 @@ public class EntryBundle(byte count, byte entIndex, ushort objIndex)
 {
     public byte EntriesCount { get; set; } = count;
     public byte EntryBundleIndex { get; set; } = entIndex;
+    
     public string EntriesUsage => (EntryBundleIndex & 0b00000001) != 0 ? ".VALID" : ".UNUSED";
     public string EntriesSafeSize => (EntryBundleIndex & 0b00000010) != 0 ? "32-bit" : "16-bit";
     public ushort ObjectIndex { get; set; } = objIndex;

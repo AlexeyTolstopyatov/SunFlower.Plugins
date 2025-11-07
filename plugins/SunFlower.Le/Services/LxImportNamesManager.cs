@@ -5,8 +5,8 @@ namespace SunFlower.Le.Services;
 
 public class LxImportNamesManager : UnsafeManager
 {
-    public List<Function> ImportingModules { get; set; } = [];
-    public List<Function> ImportingProcedures { get; set; } = [];
+    public List<Function> ImportingModules { get; } = [];
+    public List<Function> ImportingProcedures { get; } = [];
 
     public LxImportNamesManager(BinaryReader reader, uint modulesOffset, uint proceduresOffset)
     {

@@ -17,9 +17,18 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
             if (count == 0) break;
 
             var typeValue = reader.ReadByte();
-            var type = (EntryBundleType)(typeValue & 0x7F);
+            var type = (EntryBundleType?)(typeValue & 0x7F) ?? 0;
+
+            ushort objNumber = 0;
+            if (type != EntryBundleType.Unused)
+                objNumber = reader.ReadUInt16();
             
-            var bundle = new EntryBundle { Count = count, Type = type };
+            var bundle = new EntryBundle
+            {
+                Count = count, 
+                Type = type, 
+                ObjectNumber = objNumber
+            };
 
             for (var i = 0; i < count; i++)
             {
@@ -27,13 +36,12 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
                 switch (type)
                 {
                     case EntryBundleType.Unused:
-                        reader.ReadByte();
+                        
                         entry = new EntryUnused();
                         break;
                     case EntryBundleType._16Bit:
                         entry = new Entry16Bit
                         {
-                            ObjectNumber = reader.ReadUInt16(),
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16()
                         };
@@ -41,7 +49,6 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
                     case EntryBundleType._286CallGate:
                         entry = new Entry286CallGate
                         {
-                            ObjectNumber = reader.ReadUInt16(),
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16(),
                             CallGateSelector = reader.ReadUInt16()
@@ -50,7 +57,6 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
                     case EntryBundleType._32Bit:
                         entry = new Entry32Bit
                         {
-                            ObjectNumber = reader.ReadUInt16(),
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt32()
                         };
@@ -59,13 +65,12 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
                         reader.ReadUInt16(); // skip wReserved
                         entry = new EntryForwarder
                         {
-                            Flags = reader.ReadByte(),
                             ModuleOrdinal = reader.ReadUInt16(),
                             OffsetOrOrdinal = reader.ReadUInt32()
                         };
                         break;
                     default:
-                        throw new ArgumentOutOfRangeException(nameof(type));
+                        throw new ArgumentOutOfRangeException(nameof(type) + $" = {(byte)type}");
                 }
 
                 bundle.Entries.Add(entry);

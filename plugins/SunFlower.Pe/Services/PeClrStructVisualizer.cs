@@ -6,7 +6,7 @@ using SunFlower.Pe.Headers;
 
 namespace SunFlower.Pe.Services;
 
-public class Cor20StructVisualizer(Cor20Header @struct) : AbstractStructVisualizer<Cor20Header>(@struct)
+public class PeClrStructVisualizer(Cor20Header @struct) : AbstractStructVisualizer<Cor20Header>(@struct)
 {
     private readonly string _content = "### CLR Header";
     

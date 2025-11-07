@@ -42,7 +42,10 @@ public class PeImageView(PeImageModel model) : IManager
             Regions.Add(new PeImportsVisualizer(model.ImportTableModel).ToRegion());
         // another way to define .NET
         if (model.CorHeader.SizeOfHead == 0x48)
-            Regions.Add(new Cor20StructVisualizer(model.CorHeader).ToRegion());
+        {
+            Regions.Add(new PeClrStructVisualizer(model.CorHeader).ToRegion());
+            Regions.Add(new PeClrDirectoriesVisualizer(model.CorHeader.Cor20Directories.ToList()).ToRegion());
+        }
         
         if (model.Vb4Header.Signature != null! && model.Vb4Header.Signature == "VB5!".ToArray())
             Regions.Add(new Vb4StructVisualizer(model.Vb4Header).ToRegion());

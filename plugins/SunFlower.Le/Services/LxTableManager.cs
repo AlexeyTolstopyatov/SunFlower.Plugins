@@ -255,6 +255,7 @@ public class LxTableManager
     private void MakeEntryTable()
     {
         var bundleCounter = 1;
+        var entryCounter = 1;
         foreach (var bundle in _manager.EntryBundles)
         {
             var head = $"### EntryTable Bundle #{bundleCounter}";
@@ -263,6 +264,7 @@ public class LxTableManager
             contentBuilder.AppendLine(bundle.TypeDescription);
             contentBuilder.AppendLine($" - Type={bundle.TypeString}");
             contentBuilder.AppendLine($" - Entries=`{bundle.Count}`");
+            contentBuilder.AppendLine($" - Object#=`{bundle.ObjectNumber}`");
             
             contentBuilder.AppendLine("\r\n");
             contentBuilder.AppendLine($"Rows affected: {bundle.Count}");
@@ -273,73 +275,79 @@ public class LxTableManager
                 case EntryBundleType._16Bit:
                     entries = new()
                     {
-                        Columns = { "Object#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry16Bit>())
                     {
-                        entries.Rows.Add(unpacked.ObjectNumber,
+                        entries.Rows.Add(
+                            "@" + entryCounter,
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
                             unpacked.ObjectOffsets
                         );
+                        ++entryCounter;
                     }
                     break;
                 case EntryBundleType._32Bit:
                     entries = new()
                     {
-                        Columns = { "Object#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry32Bit>())
                     {
                         entries.Rows.Add(
-                            unpacked.ObjectNumber,
+                            "@" + entryCounter,
                             "0x" + unpacked.Offset.ToString("X8"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
                             unpacked.ObjectOffsets
                         );
+                        ++entryCounter;
                     }
                     break;
                 case EntryBundleType._286CallGate:
                     entries = new()
                     {
-                        Columns = { "Object#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s", "CallGate:2" }
+                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s", "CallGate:2" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry286CallGate>())
                     {
                         entries.Rows.Add(
-                            unpacked.ObjectNumber,
+                            "@"  + entryCounter,
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
                             unpacked.ObjectOffsets,
                             "0x" + unpacked.CallGateSelector.ToString("X4")
                         );
+                        ++entryCounter;
                     }
                     break;
                 case EntryBundleType.Forwarder:
                     entries = new()
                     {
-                        Columns = { "@Module:2", "@Offset:4", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "@Module:2", "@Offset:4", "ObjectOffsets:s" }
                     };
                     foreach (var unpacked in bundle.Entries.Cast<EntryForwarder>())
                     {
                         entries.Rows.Add(
+                            "@" + entryCounter,
                             "0x" + unpacked.ModuleOrdinal.ToString("X4"),
                             "0x" + unpacked.OffsetOrOrdinal.ToString("X4"),
                             unpacked.ObjectOffsets
                         );
+                        ++entryCounter;
                     }
                     break;
                 default:
                     entries = new();
+                    entryCounter += bundle.Count;
                     break;
             }
-            
             EntryTableRegions.Add(new Region(head, contentBuilder.ToString(), entries));
             bundleCounter++;
         }

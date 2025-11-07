@@ -13,10 +13,12 @@ public struct Cor20Header
     public UInt32 EntryPointRva;
     public UInt32 EntryPointToken;
 
-    public PeDirectory Resources;
-    public PeDirectory StrongName;
-    public PeDirectory CodeManager;
-    public PeDirectory VTableDirectory;
-    public PeDirectory Exports;
-    public PeDirectory ManagedNativeHeader;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+    public PeDirectory[] Cor20Directories;
+    // public PeDirectory Resources;
+    // public PeDirectory StrongName;
+    // public PeDirectory CodeManager;
+    // public PeDirectory VTableDirectory;
+    // public PeDirectory Exports;
+    // public PeDirectory ManagedNativeHeader;
 }

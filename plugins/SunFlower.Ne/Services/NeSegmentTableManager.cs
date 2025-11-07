@@ -151,7 +151,7 @@ public class NeSegmentTableManager
         List<string> chars = [];
         
         // 0x0100 byte mask -> relocations exists
-        if ((segment.Flags & 0x0100) == 0) chars.Add("WITHIN_RELOCS");
+        if ((segment.Flags & 0x0100) == 0) chars.Add("NO_RELOCS");
         if ((segment.Flags & (ushort)SegmentType.Mask) != 0) chars.Add("HAS_MASK");
         if ((segment.Flags & (ushort)SegmentType.DiscardPriority) != 0) chars.Add("DISCARDABLE");
         if ((segment.Flags & (ushort)SegmentType.Movable) != 0) chars.Add("MOVABLE_BASE");
