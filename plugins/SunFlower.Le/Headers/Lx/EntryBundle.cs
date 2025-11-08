@@ -52,7 +52,9 @@ public class Entry286CallGate : Entry
 public class EntryForwarder : Entry
 {
     public override EntryBundleType Type => EntryBundleType.Forwarder;
-    public ushort ModuleOrdinal { get; init; }
+    public byte Flags { get; init; }
+    public ushort Reserved { get; init; }
+    public uint ModuleOrdinal { get; init; }
     public uint OffsetOrOrdinal { get; init; }
     public string ObjectOffsets => "`virtual`";
 }

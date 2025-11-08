@@ -330,15 +330,15 @@ public class LxTableManager
                 case EntryBundleType.Forwarder:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "@Module:2", "@Offset:4", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "@Module:4", "@Offset:4", "Reserved:2" }
                     };
                     foreach (var unpacked in bundle.Entries.Cast<EntryForwarder>())
                     {
                         entries.Rows.Add(
                             "@" + entryCounter,
-                            "0x" + unpacked.ModuleOrdinal.ToString("X4"),
-                            "0x" + unpacked.OffsetOrOrdinal.ToString("X4"),
-                            unpacked.ObjectOffsets
+                            "0x" + unpacked.ModuleOrdinal.ToString("X8"),
+                            "0x" + unpacked.OffsetOrOrdinal.ToString("X8"),
+                            "0x" + unpacked.Reserved.ToString("X4")
                         );
                         ++entryCounter;
                     }

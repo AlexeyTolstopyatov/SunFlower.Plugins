@@ -20,7 +20,7 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
             var type = (EntryBundleType?)(typeValue & 0x7F) ?? 0;
 
             ushort objNumber = 0;
-            if (type != EntryBundleType.Unused)
+            if (type != EntryBundleType.Unused && type != EntryBundleType.Forwarder)
                 objNumber = reader.ReadUInt16();
             
             var bundle = new EntryBundle
@@ -62,9 +62,10 @@ public class LxEntryTableManager(BinaryReader reader, uint offset)
                         };
                         break;
                     case EntryBundleType.Forwarder:
-                        reader.ReadUInt16(); // skip wReserved
                         entry = new EntryForwarder
                         {
+                            Reserved = reader.ReadUInt16(),
+                            Flags = reader.ReadByte(), // throws undefined entries
                             ModuleOrdinal = reader.ReadUInt16(),
                             OffsetOrOrdinal = reader.ReadUInt32()
                         };
