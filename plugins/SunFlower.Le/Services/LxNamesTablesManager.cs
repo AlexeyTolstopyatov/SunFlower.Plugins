@@ -5,8 +5,8 @@ namespace SunFlower.Le.Services;
 
 public class LxNamesTablesManager : UnsafeManager
 {
-    public List<Name> ResidentNames { get; set; } = [];
-    public List<Name> NonResidentNames { get; set; } = [];
+    public List<ExportRecord> ResidentNames { get; set; } = [];
+    public List<ExportRecord> NonResidentNames { get; set; } = [];
 
     /// <summary>
     /// Reads and fills arrays of resident and non-resident names
@@ -22,7 +22,7 @@ public class LxNamesTablesManager : UnsafeManager
         {
             var name = Encoding.ASCII.GetString(reader.ReadBytes(i));
             var ordinal = reader.ReadUInt16();
-            ResidentNames.Add(new Name()
+            ResidentNames.Add(new ExportRecord()
             {
                 Size = i,
                 String = name,
@@ -38,7 +38,7 @@ public class LxNamesTablesManager : UnsafeManager
         {
             var name = Encoding.ASCII.GetString(reader.ReadBytes(j));
             var ordinal = reader.ReadUInt16();
-            NonResidentNames.Add(new Name
+            NonResidentNames.Add(new ExportRecord
             {
                 Size = j,
                 String = name,

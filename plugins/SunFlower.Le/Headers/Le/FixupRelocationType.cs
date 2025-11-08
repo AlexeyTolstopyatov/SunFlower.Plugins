@@ -6,11 +6,11 @@ public static class FixupRelocationType
     {
         return (rtp >> 6) switch
         {
-            0 => "REL_INTERNAL_REF",
-            1 => "REL_IMPORT_ORD",
-            2 => "REL_IMPORT_NAME",
-            3 => "REL_OSFIXUP",
-            _ => "REL_INVALID"
+            0 => "INTERNAL_REF",
+            1 => "IMPORT_ORDINAL",
+            2 => "IMPORT_NAME",
+            3 => "OSFIXUP",
+            _ => "INVALID!"
         };
     }
 

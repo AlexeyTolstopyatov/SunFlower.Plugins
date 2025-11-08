@@ -19,13 +19,11 @@ public class LeTableManager
     public string[] ImportedNames { get; set; } = [];
     public string[] ImportedProcedures { get; set; } = [];
     public DataTable FixupPages { get; set; } = new("Fixup Pages Table");
-    public DataTable[] FixupRecords { get; set; } = [];
     public List<string> Characteristics { get; set; } = [];
     public List<Region> EntryTableRegions { get; set; } = [];
     public List<Region> NamesRegions { get; set; } = [];
     public List<Region> DriverRegions { get; set; } = [];
-    // view logic problem
-    
+
     public LeTableManager(LeDumpManager manager)
     {
         _manager = manager;
@@ -36,10 +34,10 @@ public class LeTableManager
         MakeNames();
         MakeObjectTables();
         MakeEntryTable();
-        MakeFixupTables(); // eternal suffering
+        // MakeFixupTables(); // eternal suffering
         MakeCharacteristics();
     }
-
+    
     private void MakeDriverRegions()
     {
         const string mainTitle = "### VxD Driver Header";
@@ -56,7 +54,7 @@ public class LeTableManager
         mainTable.Rows.Add(nameof(VxdHeader.LE_DDKMajor), _manager.DriverHeader.LE_DDKMajor.ToString("X"));
         mainTable.Rows.Add(nameof(VxdHeader.LE_DDKMinor), _manager.DriverHeader.LE_DDKMinor.ToString("X"));
         
-        Region main = new Region(mainTitle, mainContent, mainTable);
+        var main = new Region(mainTitle, mainContent, mainTable);
 
         const string resTitle = "### VxD Resources Header";
         const string resContent = "Originally `e32_winresoff` (here: `LE_WindowsResOffset`) field optionally stores raw file pointer to this structure.";
@@ -298,83 +296,7 @@ public class LeTableManager
         ObjectRegions.Add(new Region(objectPageHead, objectPageContent, objectPages));
     }
 
-    private void MakeFixupTables()
-    {
-        FixupPages.Columns.Add("Index");
-        FixupPages.Columns.Add("Position (hex)");
-
-        for (var i = 0; i < _manager.FixupPagesOffsets.Count; i++)
-        {
-            FixupPages.Rows.Add($"#{i+1}", _manager.FixupPagesOffsets[i]);
-        }
-        
-        // uh... oh...
-        DataTable rawTable = new("Raw Fixup records table")
-        {
-            Columns =
-            {
-                "ATP (hex)", 
-                "RTP (hex)", 
-                "Internal& (hex)", 
-                "AddVal (hex)", 
-                "ExtraData (hex)", 
-                "Mod#", 
-                "Name offset (hex)", 
-                "Ordinal"
-            }
-        };
-
-        foreach (var record in _manager.FixupRecords)
-        {
-            rawTable.Rows.Add(
-                record.Record.AddressType.ToString("X"),
-                record.Record.RelocationType.ToString("X"),
-                record.Record.TargetObject.ToString("X"),
-                record.Record.AddValue.ToString("X"),
-                record.Record.ExtraData.ToString("X"),
-                record.Record.ModuleIndex.ToString("X"),
-                record.Record.NameOffset.ToString("X"),
-                record.Record.Ordinal);
-        }
-        
-        DataTable table = new("Processed Fixup records table")
-        {
-            Columns =
-            {
-                "Page#",
-                "Target",
-                "Add. Value",
-                "ExtraData",
-                "OSFixup",
-                "Ordinal",
-                "Name",
-                "ATP",
-                "RTP"
-            }
-        };
-        
-        foreach (var model in _manager.FixupRecords)
-        {
-            var atp = model.AddressTypeFlags
-                .Aggregate(string.Empty, (current, s) => current + $"`{s}` ");
-            var rtp = model.RecordTypeFlags
-                .Aggregate(string.Empty, (current, s) => current + $"`{s}` ");
-
-            table.Rows.Add(
-                model.PageIndex.ToString(),
-                model.Record.TargetObject.ToString("X"),
-                model.Record.AddValue.ToString("X"),
-                model.Record.ExtraData.ToString("X"),
-                model.Record.OsFixup.ToString("X"),
-                model.ImportingOrdinal,
-                $"`{FlowerReport.SafeString(model.ImportingName)}`",
-                atp,
-                rtp
-                );
-        }
-
-        FixupRecords = [rawTable, table];
-    }
+    
 
     private void MakeEntryTable()
     {

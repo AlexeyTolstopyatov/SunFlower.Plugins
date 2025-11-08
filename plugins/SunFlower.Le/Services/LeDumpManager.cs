@@ -18,15 +18,15 @@ public class LeDumpManager : UnsafeManager
     public MzHeader MzHeader { get; set; }
     public LeHeader LeHeader { get; set; }
     public VxdHeader DriverHeader { get; set; }
-    public List<Name> ResidentNames { get; set; } = [];
-    public List<Name> NonResidentNames { get; set; } = [];
+    public List<ExportRecord> ResidentNames { get; set; } = [];
+    public List<ExportRecord> NonResidentNames { get; set; } = [];
     public List<Function> ImportingModules { get; set; } = [];
     public List<Function> ImportingProcedures { get; set; } = [];
     public List<EntryBundle> EntryBundles { get; set; } = [];
     public List<Object> Objects { get; set; } = [];
     public List<ObjectPageModel> ObjectPages { get; set; } = [];
     public List<uint> FixupPagesOffsets { get; set; } = [];
-    public List<FixupRecordsTableModel> FixupRecords { get; set; } = [];
+    //public List<FixupRecordsTableModel> FixupRecords { get; set; } = [];
     public VxdDescriptionBlock DescriptionBlock { get; set; } = new();
     public VxdResources DriverResources { get; set; }
     public Win32Resource VersionInfo { get; set; }
@@ -57,7 +57,7 @@ public class LeDumpManager : UnsafeManager
         var entryTable = new LeEntryTableManager(reader, Offset(LeHeader.LE_EntryTable));
         var objectTable = new LeObjectsManager(reader, Offset(LeHeader.LE_ObjOffset), LeHeader.LE_ObjNum);
         var pagesTable = new LePagesManager(reader, Offset(LeHeader.LE_PageMap), LeHeader.LE_Pages);
-
+        
         NonResidentNames = namesTables.NonResidentNames;
         ResidentNames = namesTables.ResidentNames;
         ImportingModules = importNames.ImportingModules;

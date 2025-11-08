@@ -1,6 +1,6 @@
 ﻿namespace SunFlower.Le.Headers;
 
-public class Name
+public class ExportRecord
 {
     public byte Size;
     public string String = string.Empty;

@@ -10,13 +10,15 @@ public class LxDumpManager : UnsafeManager
 {
     public MzHeader MzHeader { get; set; }
     public LxHeader LxHeader { get; set; }
-    public List<Name> ResidentNames { get; set; }
-    public List<Name> NonResidentNames { get; set; }
+    public List<ExportRecord> ResidentNames { get; set; }
+    public List<ExportRecord> NonResidentNames { get; set; }
     public List<Function> ImportingModules { get; set; }
     public List<Function> ImportingProcedures { get; set; }
     public List<EntryBundle> EntryBundles { get; set; }
     public List<Headers.Lx.Object> Objects { get; set; }
     public List<ObjectPageModel> Pages { get; set; }
+    public List<FixupRecord> FixupRecords { get; set; }
+    public List<ImportRecord> ImportRecords { get; set; }
     private uint _offset;
 
     public uint Offset(uint addr) => _offset + addr;
@@ -42,7 +44,11 @@ public class LxDumpManager : UnsafeManager
         var entryTable = new LxEntryTableManager(reader, Offset(LxHeader.e32_enttab));
         var objectTable = new LxObjectsManager(reader, Offset(LxHeader.e32_objtab), LxHeader.e32_objcnt);
         var pagesTable = new LePagesManager(reader, Offset(LxHeader.e32_objmap), LxHeader.e32_pagesum);
-
+        var fixupRecords = new LxFixupRecordsManager().ReadFixupRecordsTable(reader, LxHeader, MzHeader.e_lfanew);
+        var imports = new LxImportsManager().GetImportsByFixups(reader, fixupRecords, Offset(LxHeader.e32_impmod), Offset(LxHeader.e32_impproc));
+        
+        
+        FixupRecords = fixupRecords;
         NonResidentNames = namesTables.NonResidentNames;
         ResidentNames = namesTables.ResidentNames;
         ImportingModules = importNames.ImportingModules;
@@ -50,6 +56,7 @@ public class LxDumpManager : UnsafeManager
         EntryBundles = entryTable.EntryBundles;
         Objects = objectTable.Objects;
         Pages = pagesTable.Pages;
+        ImportRecords = imports;
         
         reader.Close();
     }
