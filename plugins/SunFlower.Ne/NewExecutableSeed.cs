@@ -4,10 +4,10 @@ using SunFlower.Ne.Services;
 
 namespace SunFlower.Ne;
 
-[FlowerSeedContract(3,0,0)]
+[FlowerSeedContract(4,0,0)]
 public class NewExecutableSeed : IFlowerSeed
 {
-    public string Seed { get; } = "Sunflower Win16-OS/2 NE IA-32";
+    public string Seed => "Sunflower Win16-OS/2 NE IA-32";
     public FlowerSeedStatus Status { get; } = new();
     public int Main(string path)
     {

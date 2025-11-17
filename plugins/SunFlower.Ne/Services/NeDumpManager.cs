@@ -90,7 +90,9 @@ public class NeDumpManager : UnsafeManager
         
         var entries = new NeEntryTableManager(reader, 
             Offset(NeHeader.NE_EntryTable), 
-            NeHeader.NE_EntriesCount
+            NeHeader.NE_EntriesCount,
+            exports.NonResidentNames,
+            exports.ResidentNames
         );
 
         Segments = segments.SegmentModels;

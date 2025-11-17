@@ -14,6 +14,7 @@ public class NeEntryBundleVisualizer(NeEntryBundle @struct, int number) : Abstra
             Columns =
             {
                 FlowerReport.ForColumn("Ordinal", typeof(ushort)),
+                FlowerReport.ForColumn("Name", typeof(string)),
                 FlowerReport.ForColumn("Offset", typeof(ushort)),
                 FlowerReport.ForColumn("Segment", typeof(ushort)),
                 FlowerReport.ForColumn("Entry", typeof(string)),
@@ -25,6 +26,7 @@ public class NeEntryBundleVisualizer(NeEntryBundle @struct, int number) : Abstra
         {
             entries.Rows.Add(
                 "@" + item.Ordinal,
+                item.Name,
                 item.Offset.ToString("X"),
                 item.Segment,
                 item.Entry,

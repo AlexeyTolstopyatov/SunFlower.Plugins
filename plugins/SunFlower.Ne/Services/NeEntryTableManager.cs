@@ -1,18 +1,28 @@
-﻿using SunFlower.Ne.Models;
+﻿using SunFlower.Ne.Headers;
+using SunFlower.Ne.Models;
 
 namespace SunFlower.Ne.Services;
 
-public class NeEntryTableManager(BinaryReader reader, uint offset, uint bundlesCount)
+public class NeEntryTableManager(BinaryReader reader, uint offset, uint bundlesCount, List<Name> nonResidentNames, List<Name> residentNames)
 {
-    /// <summary>
-    /// Exporting Addresses Table. I don't know what actually is that.
-    /// </summary>
-    public List<NeEntryBundle> EntryBundles { get; } = FindEntryBundles(reader, offset, bundlesCount);
+    public List<NeEntryBundle> EntryBundles => FindEntryBundles();
 
-    private static List<NeEntryBundle> FindEntryBundles(BinaryReader reader, uint bundlesOffset, uint bundlesCount)
+    private List<NeEntryBundle> FindEntryBundles()
     {
-        reader.BaseStream.Position = bundlesOffset;
+        reader.BaseStream.Position = offset;
+        var nonResidentOrdinals = nonResidentNames.Select(x => x.Ordinal).ToList();
+        var residentOrdinals = residentNames.Select(x => x.Ordinal).ToList();
         
+        string TryGetName(int index)
+        {
+            if (nonResidentOrdinals.Contains((ushort)index)) 
+                return nonResidentNames.First(x => x.Ordinal == index).String;
+            if (residentOrdinals.Contains((ushort)index))
+                return residentNames.First(x => x.Ordinal == index).String;
+
+            return "";
+        }
+
         var bundles = new List<NeEntryBundle>();
         var bytesRemaining = (int)bundlesCount;
         var currentOrdinal = 1;
@@ -58,27 +68,29 @@ public class NeEntryTableManager(BinaryReader reader, uint offset, uint bundlesC
                         var flags = reader.ReadByte();
                         var magic = reader.ReadBytes(2);
                         var segment = reader.ReadByte();
-                        var offset = reader.ReadUInt16();
+                        var entOffset = reader.ReadUInt16();
 
                         entries.Add(new EntryTableModel(
                             false, true ,flags)
                         {
-                            Offset = offset,
+                            Offset = entOffset,
                             Segment = segment,
-                            Ordinal = (ushort)currentOrdinal
+                            Ordinal = (ushort)currentOrdinal,
+                            Name = TryGetName(currentOrdinal)
                         });
                     }
                     else
                     {
                         var flags = reader.ReadByte();
-                        var offset = reader.ReadUInt16();
+                        var entOffset = reader.ReadUInt16();
 
                         entries.Add(new EntryTableModel(
                             false, false, flags)
                         {
-                            Offset = offset,
+                            Offset = entOffset,
                             Segment = segId,
                             Ordinal = (ushort)currentOrdinal,
+                            Name = TryGetName(currentOrdinal)
                         });
                     }
 

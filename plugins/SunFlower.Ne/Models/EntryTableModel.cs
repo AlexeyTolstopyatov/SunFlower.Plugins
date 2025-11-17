@@ -17,6 +17,7 @@ public class EntryTableModel(bool isUnused, bool isMovable, byte flags)
     public ushort Offset { get; set; }
     public ushort Segment { get; set; }
     public ushort Ordinal { get; set; }
+    public string Name { get; set; } = string.Empty;
     public byte Flags { get; set; } 
 }
 

@@ -11,10 +11,9 @@ public class LxDumpManager : UnsafeManager
     public LxHeader LxHeader { get; }
     public List<ExportRecord> ResidentNames { get; }
     public List<ExportRecord> NonResidentNames { get; }
-    public List<string> ImportingModules { get; set; }
     public List<EntryBundle> EntryBundles { get; }
     public List<Headers.Lx.Object> Objects { get; }
-    public List<ObjectPageModel> Pages { get; set; }
+    public List<ObjectPageModel> Pages { get; }
     public List<FixupRecord> FixupRecords { get; }
     public List<FixupPageRecord> FixupPageOffsets { get; }
     public List<ImportRecord> ImportRecords { get; }
@@ -49,7 +48,6 @@ public class LxDumpManager : UnsafeManager
         
         NonResidentNames = namesTables.NonResidentNames;
         ResidentNames = namesTables.ResidentNames;
-        ImportingModules = importNames.ImportingModules;
         EntryBundles = entryTable.EntryBundles;
         Objects = objectTable.Objects;
         FixupPageOffsets = fixupPageOffsets;

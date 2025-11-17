@@ -197,13 +197,14 @@ public class LxTableManager
                 case EntryBundleType.Forwarder:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "Name:s", "@Module:4", "@Offset:4", "Reserved:2" }
+                        Columns = { "Ordinal#:2", "Name:s", "Flags:1", "@Module:4", "@Offset:4", "Reserved:2" }
                     };
                     foreach (var unpacked in bundle.Entries.Cast<EntryForwarder>())
                     {
                         entries.Rows.Add(
                             "@" + entryCounter,
                             unpacked.EntryName,
+                            "0x" + unpacked.Flags.ToString("X2"),
                             "0x" + unpacked.ModuleOrdinal.ToString("X8"),
                             "0x" + unpacked.OffsetOrOrdinal.ToString("X8"),
                             "0x" + unpacked.Reserved.ToString("X4")
