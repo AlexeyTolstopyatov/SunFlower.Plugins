@@ -1,10 +1,12 @@
 ﻿using System.Data;
 using System.Text;
+using Microsoft.Win32;
 using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Le.Headers;
 using SunFlower.Le.Headers.Le;
 using SunFlower.Le.Headers.Lx;
+using SunFlower.Le.Visualizers;
 
 namespace SunFlower.Le.Services;
 
@@ -12,125 +14,107 @@ public class LxTableManager
 {
     private LxDumpManager _manager;
     
-    public List<Region> ObjectRegions { get; set; } = [];
-    public List<Region> EntryTableRegions { get; set; } = [];
-    public List<Region> NamesRegions { get; set; } = [];
-    public List<string> Characteristics { get; set; } = [];
-    public string[] ImportedNames { get; set; } = [];
-    public string[] ImportedProcedures { get; set; } = [];
-    public List<DataTable> Headers { get; set; } = [];
+    public List<Region> ObjectRegions { get; } = [];
+    public List<Region> EntryTableRegions { get; } = [];
+    public List<Region> NamesRegions { get; } = [];
+    public List<string> Characteristics { get; private set; } = [];
+    public List<Region> Headers { get; } = [];
     
     public LxTableManager(LxDumpManager manager)
     {
         _manager = manager;
         // list of init queue
         MakeCharacteristics();
-        MakeHeaders();
-        MakeObjectTables();
-        MakeNames();
+        Headers.Add(new HeaderVisualizer(_manager.LxHeader).ToRegion());
+        ObjectRegions.Add(new ObjectPagesVisualizer(_manager.Pages).ToRegion());
+        ObjectRegions.Add(new ObjectTableVisualizer(_manager.Objects).ToRegion());
         MakeEntryTable();
+        ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
         MakeFixupRecords();
         MakeImports();
+        NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
+        NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
 
     private void MakeFixupRecords()
     {
-        var reg = new Region("## Fixup Records", "???", FlowerReflection.ListToDataTable(_manager.FixupRecords));
+        var internalFixups = _manager.FixupRecords
+            .Where(t => t.TargetData is FixupTargetInternal)
+            .ToList();
+
+        var internalFixupsData = internalFixups
+            .Select(t => (FixupTargetInternal)t.TargetData)
+            .ToList();
         
-        ObjectRegions.Add(reg);
+        ObjectRegions.Add(new Region(
+            "### Internal Fixups | Common data", 
+            "Every relocation record has same columns what describe next uniqe information", FlowerReflection.ListToDataTable(internalFixups)));
+        ObjectRegions.Add(new Region(
+            "### Internal Fixups | Target data",
+            "Those blocks fully depend on previous headers details",
+            FlowerReflection.ListToDataTable(internalFixupsData)
+            ));
+
+        var importFixups = _manager.FixupRecords
+            .Where(t => t.TargetFlags is 0x02 or 0x01)
+            .ToList();
+        var importFixupsData = importFixups
+            .Select(t => t.TargetData)
+            .ToList();
+        
+        // those tables are same with fields
+        var dt = new DataTable
+        {
+            Columns = { "Module#:2", "Procedure@:4/Procedure Offset:4" }
+        };
+
+        foreach (var rec in importFixupsData)
+        {
+            switch (rec)
+            {
+                case FixupTargetImportedName i:
+                    dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
+                    break;
+                case FixupTargetImportedOrdinal o:
+                    dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
+                    break;
+            }
+        }
+        ObjectRegions.Add(new Region(
+            "### Import Fixups | Common data",
+            "Importing procedures fixups",
+            FlowerReflection.ListToDataTable(importFixups)));
+        ObjectRegions.Add(new Region(
+            "### Import Fixups | Target data",
+            "Importing procedures unique data",
+            dt));
+        var entFixups = _manager.FixupRecords
+            .Where(t => t.TargetData is FixupTargetEntryTable)
+            .ToList();
+        var entFixupData = entFixups
+            .Select(t => (FixupTargetEntryTable)t.TargetData)
+            .ToList();
+        ObjectRegions.Add(
+            new Region(
+            "### Fixups via EntryTable | Common data",
+            "IBM documentation tells, this record is a pointer to entry table of _current module_",
+            FlowerReflection.ListToDataTable(entFixups)
+            ));
+        ObjectRegions.Add(new Region(
+            "### Fixups via EntryTable | Target data",
+            "This is a list of indexes/ordinals of entries in entry table of current module",
+            FlowerReflection.ListToDataTable(entFixupData)
+            ));
     }
 
     private void MakeImports()
     {
-        var reg = new Region("## Imports", "??", FlowerReflection.ListToDataTable(_manager.ImportRecords));
+        var reg = new Region(
+            "### Imports",
+            @"All imports resolved using fixup records table for this module.", 
+            FlowerReflection.ListToDataTable(_manager.ImportRecords));
         
         NamesRegions.Add(reg);
-    }
-    private void MakeHeaders()
-    {
-        List<DataTable> tables =
-        [
-            MakeMzHeader(_manager.MzHeader),
-            MakeLxHeader(_manager.LxHeader)
-        ];
-        
-        Headers = tables;
-    }
-
-    private DataTable MakeMzHeader(MzHeader mz)
-    {
-        return FlowerReflection.GetNameValueTable(mz);
-    }
-
-    private DataTable MakeLxHeader(LxHeader header)
-    {
-        return FlowerReflection.GetNameValueTable(header);
-    }
-
-    private static void AddRow(ref DataTable table, object a, object b)
-    {
-        table.Rows.Add(a, b);
-    }
-    private void MakeObjectTables()
-    {
-        DataTable objectsTable = new("Objects Table");
-        const string objectHead = "### Objects Table";
-        const string objectContent = "Meaning of objects in ObjectTable are the same with sections of modern executable binaries for a first time. " +
-                                     "The number of entries in the Object Table is given by the # Objects in Module field in the linear " +
-                                     "\nEXE header. Entries in the Object Table are numbered starting from one.";
-        
-        objectsTable.Columns.Add("#");
-        objectsTable.Columns.Add("Name:s");
-        objectsTable.Columns.Add("VirtualSize:4");
-        objectsTable.Columns.Add("RelBase:4");
-        objectsTable.Columns.Add("FlagsMask:4");
-        objectsTable.Columns.Add("PageMapIndex:4");
-        objectsTable.Columns.Add("PageMapEntries:4");
-        objectsTable.Columns.Add("Unknown:4");
-        objectsTable.Columns.Add("Flags:s");
-
-        var counter = 1;
-        foreach (var table in _manager.Objects)
-        {
-            var text = table
-                .ObjectFlags
-                .Aggregate("", (current, s) => current + $"`{s}` ");
-            var name = SunFlower.Le.Headers.Lx.Object.GetSuggestedNameByPermissions(table);
-            
-            objectsTable.Rows.Add(
-                counter,
-                name,
-                "0x" + table.VirtualSegmentSize.ToString("X8"),
-                "0x" + table.RelocationBaseAddress.ToString("X8"),
-                "0x" + table.ObjectFlagsMask.ToString("X8"),
-                "0x" + table.PageMapIndex.ToString("X8"),
-                "0x" + table.PageMapEntries.ToString("X8"),
-                table.Unknown.ToString("X8"),
-                text
-            );
-
-            counter++;
-        }
-        ObjectRegions.Add(new Region(objectHead, objectContent, objectsTable));
-
-        const string objectPageHead = "### Object Pages";
-        const string objectPageContent = "The object page table specifies where in the EXE file a page can be found " +
-                                         "for a given object and specifies per-page attributes. " +
-                                         "The object table entries are ordered by logical page in the object table. " +
-                                         "In other words the object table entries are sorted based on the object page table index value. ";
-        
-        ObjectRegions.Add(new Region(objectPageHead, objectPageContent, FlowerReflection.ListToDataTable(_manager.Objects)));
-    }
-    private void MakeNames()
-    {
-        var residentHeader = "### Resident Names Table";
-        var notResidentHeader = "### NonResident Names Table";
-
-        var residentContent = "The resident name table is kept resident in system memory while the module is loaded. It is intended to contain the exported entry point names that are frequently dynamicaly linked to by name.";
-        var notResidentContent = "Non-resident names are not kept in memory and are read from the EXE file when a dynamic link reference is made.";
-        
-        NamesRegions.Add(new Region(residentHeader, residentContent, FlowerReflection.ListToDataTable(_manager.ResidentNames)));
-        NamesRegions.Add(new Region(notResidentHeader, notResidentContent, FlowerReflection.ListToDataTable(_manager.NonResidentNames)));
     }
     private void MakeEntryTable()
     {
@@ -155,13 +139,14 @@ public class LxTableManager
                 case EntryBundleType._16Bit:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "Name:s", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry16Bit>())
                     {
                         entries.Rows.Add(
                             "@" + entryCounter,
+                            unpacked.EntryName,
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
@@ -173,13 +158,14 @@ public class LxTableManager
                 case EntryBundleType._32Bit:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
+                        Columns = { "Ordinal#:2", "Name:s", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry32Bit>())
                     {
                         entries.Rows.Add(
                             "@" + entryCounter,
+                            unpacked.EntryName,
                             "0x" + unpacked.Offset.ToString("X8"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
@@ -191,13 +177,14 @@ public class LxTableManager
                 case EntryBundleType._286CallGate:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s", "CallGate:2" }
+                        Columns = { "Ordinal#:2", "Name:s", "Offset:2", "Entry:s", "Flags:1", "ObjectOffsets:s", "CallGate:2" }
                     };
                     
                     foreach (var unpacked in bundle.Entries.Cast<Entry286CallGate>())
                     {
                         entries.Rows.Add(
                             "@"  + entryCounter,
+                            unpacked.EntryName,
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
@@ -210,12 +197,13 @@ public class LxTableManager
                 case EntryBundleType.Forwarder:
                     entries = new()
                     {
-                        Columns = { "Ordinal#:2", "@Module:4", "@Offset:4", "Reserved:2" }
+                        Columns = { "Ordinal#:2", "Name:s", "@Module:4", "@Offset:4", "Reserved:2" }
                     };
                     foreach (var unpacked in bundle.Entries.Cast<EntryForwarder>())
                     {
                         entries.Rows.Add(
                             "@" + entryCounter,
+                            unpacked.EntryName,
                             "0x" + unpacked.ModuleOrdinal.ToString("X8"),
                             "0x" + unpacked.OffsetOrOrdinal.ToString("X8"),
                             "0x" + unpacked.Reserved.ToString("X4")

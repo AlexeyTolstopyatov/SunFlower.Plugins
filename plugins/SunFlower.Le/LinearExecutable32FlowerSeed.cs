@@ -18,18 +18,8 @@ public class LinearExecutable32FlowerSeed : IFlowerSeed
             LxTableManager tableManager = new(dumpManager);
 
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, tableManager.Characteristics));
-            FlowerSeedResult imports = new(FlowerSeedEntryType.Strings);
             
-            List<string> mods = ["### Imported Modules", ..tableManager.ImportedNames];
-            List<string> procs = ["### Imported Procedures", ..tableManager.ImportedProcedures];
-            
-            mods.AddRange(procs);
-
-            imports.BoxedResult = mods;
-            Status.Results.Add(imports);
-            
-            List<DataTable> unboxed = [..tableManager.Headers];
-            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.DataTables, unboxed));
+            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.Headers));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.ObjectRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.EntryTableRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.NamesRegions));

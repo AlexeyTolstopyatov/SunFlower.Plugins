@@ -3,7 +3,7 @@ using SunFlower.Le.Headers.Lx;
 
 namespace SunFlower.Le.Services;
 
-public class LxFixupRecordsManager
+public class FixupRecordsManager
 {
     private object ReadTargetData(BinaryReader reader, byte targetType, FixupRecord record)
     {
@@ -141,29 +141,28 @@ public class LxFixupRecordsManager
             return null;
         }
     }
-    public List<FixupRecord> ReadFixupRecordsTable(BinaryReader reader, LxHeader header, long off)
+    public List<FixupRecord> ReadFixupRecordsTable(BinaryReader reader, LxHeader header, long off, List<FixupPageRecord> fixupOffsets)
     {
         var records = new List<FixupRecord>();
-
-        long fixupRecordTableOffset = header.e32_frectab + off;
-        reader.BaseStream.Seek(fixupRecordTableOffset, SeekOrigin.Begin);
-    
-        long endOffset = GetFixupRecordTableEnd(reader, ref header);
-    
-        while (reader.BaseStream.Position < endOffset)
-        {
-            var record = ReadSingleFixupRecord(reader);
-            if (record != null)
-                records.Add(record.Value);
-        }
-    
-        return records;
-    }
-    private long GetFixupRecordTableEnd(BinaryReader reader, ref LxHeader header)
-    {
-        if (header.e32_impmod != 0) 
-            return header.e32_impmod;
+        var fixupRecordsOffset = header.e32_frectab + off;
         
-        return header.e32_fpagetab + header.e32_fixupsize;
+        for (var i = 0; i < fixupOffsets.Count - 1; i++)
+        {
+            var recordOffset = fixupRecordsOffset + fixupOffsets[i].Offset;
+            reader.BaseStream.Seek(recordOffset, SeekOrigin.Begin);
+
+            var nextOffset = fixupOffsets[i + 1].Offset;
+
+            while (reader.BaseStream.Position < fixupRecordsOffset + nextOffset)
+            {
+                var record = ReadSingleFixupRecord(reader);
+                if (record.HasValue)
+                    records.Add(record.Value);
+                else
+                    break;
+            }
+        }
+
+        return records;
     }
 }

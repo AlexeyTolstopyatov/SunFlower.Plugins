@@ -17,7 +17,7 @@ public class LxObjectsManager
             var pageMapEntries = reader.ReadUInt32();
             var unknownField = reader.ReadUInt32();
             
-            Objects.Add(new Headers.Lx.Object()
+            Objects.Add(new Headers.Lx.Object
             {
                 VirtualSegmentSize = virtualSegmentSize,
                 ObjectFlagsMask = objectFlagsMask,

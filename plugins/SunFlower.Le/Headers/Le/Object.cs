@@ -49,7 +49,7 @@ public struct Object(uint virtualSegmentSize, uint relocationBase, uint objectFl
             true when x => ".CODE",
             true when w => ".DATA",
             true when v == 0 => ".BSS",
-            _ => ".OBJECT"
+            _ => ".RDATA"
         };
     }
 }

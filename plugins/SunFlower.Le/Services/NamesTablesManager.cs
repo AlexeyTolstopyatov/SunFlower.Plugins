@@ -3,7 +3,7 @@ using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Services;
 
-public class LeNamesTablesManager
+public class NamesTablesManager
 {
     public List<ExportRecord> ResidentNames { get; set; } = [];
     public List<ExportRecord> NonResidentNames { get; set; } = [];
@@ -14,7 +14,7 @@ public class LeNamesTablesManager
     /// <param name="reader"></param>
     /// <param name="residentOffset"></param>
     /// <param name="nonResidentOffset"></param>
-    public LeNamesTablesManager(BinaryReader reader, uint residentOffset, uint nonResidentOffset)
+    public NamesTablesManager(BinaryReader reader, uint residentOffset, uint nonResidentOffset)
     {
         reader.BaseStream.Position = residentOffset;
         byte i;
@@ -22,7 +22,7 @@ public class LeNamesTablesManager
         {
             var name = Encoding.ASCII.GetString(reader.ReadBytes(i));
             var ordinal = reader.ReadUInt16();
-            ResidentNames.Add(new ExportRecord()
+            ResidentNames.Add(new ExportRecord
             {
                 Size = i,
                 String = name,

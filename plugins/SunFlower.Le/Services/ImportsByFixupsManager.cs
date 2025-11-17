@@ -2,7 +2,7 @@
 
 namespace SunFlower.Le.Services;
 
-public class LxImportsManager
+public class ImportsByFixupsManager
 {
     public List<ImportRecord> GetImportsByFixups(
         BinaryReader reader, 
@@ -20,7 +20,7 @@ public class LxImportsManager
                     imports.Add(new ImportRecord(
                         modules.ElementAt(ordinal.ModuleOrdinal - 1), 
                         $"@{ordinal.ImportOrdinal}", 
-                        reader.BaseStream.Position));
+                        null));
                     break;
                 case FixupTargetImportedName name:
                 {
