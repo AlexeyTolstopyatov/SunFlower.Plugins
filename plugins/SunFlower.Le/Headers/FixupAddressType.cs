@@ -1,4 +1,4 @@
-﻿namespace SunFlower.Le.Headers.Le;
+﻿namespace SunFlower.Le.Headers;
 
 public static class FixupAddressType
 {

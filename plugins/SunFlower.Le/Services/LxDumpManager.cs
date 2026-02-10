@@ -1,7 +1,6 @@
 ﻿using SunFlower.Le.Headers;
 using SunFlower.Le.Headers.Lx;
-using SunFlower.Le.Models.Le;
-using EntryBundle = SunFlower.Le.Headers.Lx.EntryBundle;
+using EntryBundle = SunFlower.Le.Headers.EntryBundle;
 
 namespace SunFlower.Le.Services;
 
@@ -13,7 +12,7 @@ public class LxDumpManager : UnsafeManager
     public List<ExportRecord> NonResidentNames { get; }
     public List<EntryBundle> EntryBundles { get; }
     public List<Headers.Lx.Object> Objects { get; }
-    public List<ObjectPageModel> Pages { get; }
+    public List<ObjectPage> Pages { get; }
     public List<FixupRecord> FixupRecords { get; }
     public List<FixupPageRecord> FixupPageOffsets { get; }
     public List<ImportRecord> ImportRecords { get; }
@@ -41,9 +40,9 @@ public class LxDumpManager : UnsafeManager
         var importNames = new ImportNamesManager(reader, Offset(LxHeader.e32_impmod));
         var entryTable = new EntryTableManager(reader, Offset(LxHeader.e32_enttab), namesTables.ResidentNames, namesTables.NonResidentNames, importNames.ImportingModules, Offset(LxHeader.e32_impproc));
         var objectTable = new LxObjectsManager(reader, Offset(LxHeader.e32_objtab), LxHeader.e32_objcnt);
-        var pagesTable = new LePagesManager(reader, Offset(LxHeader.e32_objmap), LxHeader.e32_pagesum);
-        var fixupPageOffsets = new FixupPagesManager(reader, Offset(LxHeader.e32_fpagetab), LxHeader.e32_mpages, LxHeader.e32_pageshift).GetFixupPageOffsets();
-        var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, LxHeader, MzHeader.e_lfanew, fixupPageOffsets);
+        var pagesTable = new LxPagesManager(reader, Offset(LxHeader.e32_objmap), LxHeader.e32_mpages);
+        var fixupPageOffsets = new FixupPagesManager(reader, Offset(LxHeader.e32_fpagetab), LxHeader.e32_mpages).GetFixupPageOffsets();
+        var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LxHeader.e32_frectab), fixupPageOffsets);
         var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, Offset(LxHeader.e32_impmod), Offset(LxHeader.e32_impproc));
         
         NonResidentNames = namesTables.NonResidentNames;

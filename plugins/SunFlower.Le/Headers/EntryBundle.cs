@@ -1,4 +1,4 @@
-﻿namespace SunFlower.Le.Headers.Lx;
+﻿namespace SunFlower.Le.Headers;
 
 public enum EntryBundleType : byte
 {

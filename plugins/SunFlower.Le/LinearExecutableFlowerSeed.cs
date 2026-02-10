@@ -3,28 +3,25 @@ using SunFlower.Abstractions.Types;
 using SunFlower.Le.Services;
 
 namespace SunFlower.Le;
-
-[FlowerSeedContract(4, 0, 0)]
-public class LinearExecutable32FlowerSeed : IFlowerSeed
+[FlowerSeedContract(4,0,0)]
+public class LinearExecutableFlowerSeed : IFlowerSeed
 {
-    public string Seed => "Sunflower OS/2-ArcaOS LX x86";
-    public FlowerSeedStatus Status { get; } = new();
     public int Main(string path)
     {
         try
         {
-            LxDumpManager dumpManager = new(path);
-            LxTableManager tableManager = new(dumpManager);
+            LeDumpManager dumpManager = new(path);
+            LeTableManager tableManager = new(dumpManager);
 
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, tableManager.Characteristics));
-            
+
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.Headers));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.ObjectRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.EntryTableRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.NamesRegions));
             
             Status.IsEnabled = true;
-            
+
             return 0;
         }
         catch (Exception e)
@@ -33,4 +30,7 @@ public class LinearExecutable32FlowerSeed : IFlowerSeed
             return -1;
         }
     }
+
+    public string Seed => "Sunflower OS/2-Windows386 LE x86";
+    public FlowerSeedStatus Status { get; } = new();
 }

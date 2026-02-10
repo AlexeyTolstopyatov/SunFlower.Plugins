@@ -5,12 +5,9 @@ using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Visualizers;
 
-public class NonResidentNamesVisualizer : AbstractStructVisualizer<List<ExportRecord>>
+public class NonResidentNamesVisualizer(List<ExportRecord> @struct)
+    : AbstractStructVisualizer<List<ExportRecord>>(@struct)
 {
-    public NonResidentNamesVisualizer(List<ExportRecord> @struct) : base(@struct)
-    {
-    }
-
     public override DataTable ToDataTable()
     {
         return FlowerReflection.ListToDataTable(_struct);

@@ -13,7 +13,7 @@ public struct VxdDescriptionBlock
     public ushort Flags;           /* INIT <0> for init calls complete */
     
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
-    public byte[] Name;          /* 8 bytes AINIT <"        "> Device name */
+    public char[] Name;          /* 8 bytes AINIT <"        "> Device name */
     
     public uint InitOrder;       /* INIT <UNDEFINED_INIT_ORDER> */
     public uint ControlProcedureOffset;     /* Offset of control procedure */

@@ -1,6 +1,5 @@
 ﻿using System.Data;
 using System.Text;
-using Microsoft.VisualBasic.CompilerServices;
 using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;

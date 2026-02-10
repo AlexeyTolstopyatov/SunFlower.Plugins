@@ -1,5 +1,4 @@
 ﻿using SunFlower.Le.Headers;
-using SunFlower.Le.Headers.Lx;
 
 namespace SunFlower.Le.Services;
 
@@ -118,22 +117,19 @@ public class FixupRecordsManager
             // if additive flags?
             if (record.HasAdditive)
             {
-                if (record.Is32BitAdditive)
-                    record.AdditiveValue = reader.ReadUInt32();
-                else
-                    record.AdditiveValue = reader.ReadUInt16();
+                record.AdditiveValue = record.Is32BitAdditive ? reader.ReadUInt32() : reader.ReadUInt16();
             }
         
             // sources list
-            if (record.HasSourceList)
+            if (!record.HasSourceList) 
+                return record;
+            
+            record.SourceOffsetList = new ushort[record.SourceOffset];
+            for (var i = 0; i < record.SourceOffset; i++)
             {
-                record.SourceOffsetList = new ushort[record.SourceOffset];
-                for (var i = 0; i < record.SourceOffset; i++)
-                {
-                    record.SourceOffsetList[i] = reader.ReadUInt16();
-                }
+                record.SourceOffsetList[i] = reader.ReadUInt16();
             }
-        
+
             return record;
         }
         catch
@@ -141,10 +137,10 @@ public class FixupRecordsManager
             return null;
         }
     }
-    public List<FixupRecord> ReadFixupRecordsTable(BinaryReader reader, LxHeader header, long off, List<FixupPageRecord> fixupOffsets)
+    public List<FixupRecord> ReadFixupRecordsTable(BinaryReader reader, uint frectab, List<FixupPageRecord> fixupOffsets)
     {
         var records = new List<FixupRecord>();
-        var fixupRecordsOffset = header.e32_frectab + off;
+        var fixupRecordsOffset = frectab;
         
         for (var i = 0; i < fixupOffsets.Count - 1; i++)
         {

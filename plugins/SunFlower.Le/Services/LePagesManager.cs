@@ -1,11 +1,10 @@
-﻿using SunFlower.Le.Headers.Le;
-using SunFlower.Le.Models.Le;
+﻿using ObjectPage = SunFlower.Le.Models.Le.ObjectPage;
 
 namespace SunFlower.Le.Services;
 
 public class LePagesManager
 {
-    public List<ObjectPageModel> Pages { get; set; } = [];
+    public List<ObjectPage> Pages { get; set; } = [];
 
     public LePagesManager(BinaryReader reader, uint offset, uint count)
     {
@@ -13,44 +12,42 @@ public class LePagesManager
         
         for (var i = 0; i < count; i++)
         {
-            var entry = new ObjectPage
+            var entry = new Headers.Le.ObjectPage
             {
-                HighPage = reader.ReadUInt16(),
-                LowPage = reader.ReadByte(),
+                PageIndex = reader.ReadBytes(3),
                 Flags = reader.ReadByte()
-            };
-            // alignment skip
-            reader.ReadUInt32(); 
+            }; // суммарно это ровно 32 бита. Есть ли смысл мне выравниваться?
+            //reader.ReadUInt32(); 
             
             ToModel(entry);
         }
     }
 
-    private void ToModel(ObjectPage page)
+    private void ToModel(Headers.Le.ObjectPage page)
     {
         List<string> flags = [];
         
-        switch (page.Flags & (byte)ObjectPage.PageFlags.TypeMask)
+        switch (page.Flags & (byte)Headers.Le.ObjectPage.PageFlags.TypeMask)
         {
-            case (byte)ObjectPage.PageFlags.Legal:
+            case (byte)Headers.Le.ObjectPage.PageFlags.Legal:
                 flags.Add("LEGAL");
                 break;
-            case (byte)ObjectPage.PageFlags.Iterated:
+            case (byte)Headers.Le.ObjectPage.PageFlags.Iterated:
                 flags.Add("ITERATED");
                 break;
-            case (byte)ObjectPage.PageFlags.Invalid:
+            case (byte)Headers.Le.ObjectPage.PageFlags.Invalid:
                 flags.Add("INVALID");
                 break;
-            case (byte)ObjectPage.PageFlags.ZeroFilled:
+            case (byte)Headers.Le.ObjectPage.PageFlags.ZeroFilled:
                 flags.Add("BSS");
                 break;
         }
     
-        if ((page.Flags & (byte)ObjectPage.PageFlags.LastPageInFile) != 0)
+        if ((page.Flags & (byte)Headers.Le.ObjectPage.PageFlags.LastPageInFile) != 0)
         {
             flags.Add("LAST");
         }
         
-        Pages.Add(new ObjectPageModel(page, flags));
+        Pages.Add(new ObjectPage(page, flags));
     }
 }

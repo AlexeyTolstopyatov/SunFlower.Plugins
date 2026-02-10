@@ -49,14 +49,17 @@ public struct Object(uint virtualSegmentSize, uint relocationBase, uint objectFl
         var w = obj.Write;
         var x = obj.Execute;
         var v = obj.VirtualSegmentSize;
+        var rsrc = obj.Resource;
 
+        if (rsrc) return ".RSRC";
+        
         return r switch
         {
-            true when w && x => ".GOD", // rwx sections may be a signs of malware
-            true when x => ".CODE",
-            true when w => ".DATA",
-            true when v == 0 => ".BSS",
-            _ => ".OBJECT"
+            true when w && x => ".GOD (rwx-)", // rwx sections may be a signs of malware
+            true when x => ".CODE (r-x-)",
+            true when w => ".DATA (rw--)",
+            true when v == 0 => ".BSS (rw-v)",
+            _ => ".?(----)"
         };
     }
 }

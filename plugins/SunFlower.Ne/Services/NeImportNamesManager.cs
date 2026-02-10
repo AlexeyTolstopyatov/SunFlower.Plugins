@@ -29,7 +29,7 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
         reader.BaseStream.Position = offsets.ModuleReferencesOffset;
         var modTab = new List<ushort>();
         
-        for (int i = 0; i < offsets.ModuleReferencesCount; ++i)
+        for (var i = 0; i < offsets.ModuleReferencesCount; ++i)
         {
             modTab.Add(reader.ReadUInt16());
         }
@@ -44,12 +44,12 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
 
         foreach (var relocation in importRelocations)
         {
-            string moduleName = GetModule(reader, offsets, relocation.ModuleIndex);
+            var moduleName = GetModule(reader, offsets, relocation.ModuleIndex);
             
             if (string.IsNullOrEmpty(moduleName))
                 continue;
 
-            Import procedure = GetImport(reader, offsets, relocation);
+            var procedure = GetImport(reader, offsets, relocation);
             procedure.Module = moduleName;
             
             if (!importedModules.ContainsKey(moduleName))

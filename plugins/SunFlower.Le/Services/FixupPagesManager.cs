@@ -2,7 +2,7 @@
 
 namespace SunFlower.Le.Services;
 
-public class FixupPagesManager(BinaryReader reader, uint pagesOffset, uint pagesCount, uint pagesShift)
+public class FixupPagesManager(BinaryReader reader, uint pagesOffset, uint pagesCount)
 {
     public List<FixupPageRecord> GetFixupPageOffsets()
     {

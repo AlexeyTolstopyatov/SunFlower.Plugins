@@ -45,11 +45,11 @@ public struct Object(uint virtualSegmentSize, uint relocationBase, uint objectFl
 
         return r switch
         {
-            true when w && x => ".GOD", // rwx sections may be a signs of malware
-            true when x => ".CODE",
-            true when w => ".DATA",
-            true when v == 0 => ".BSS",
-            _ => ".RDATA"
+            true when w && x => ".GOD (rwx-)", // rwx sections may be a signs of malware
+            true when x => ".CODE (r-x-)",
+            true when w => ".DATA (rw--)",
+            true when v == 0 => ".BSS (rw-v)",
+            _ => ".RDATA (r---)"
         };
     }
 }

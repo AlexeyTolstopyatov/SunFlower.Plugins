@@ -1,19 +1,15 @@
 ﻿using System.Data;
 using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
-using SunFlower.Le.Models.Le;
+using SunFlower.Le.Headers.Lx;
 
 namespace SunFlower.Le.Visualizers;
 
-public class ObjectPagesVisualizer : AbstractStructVisualizer<List<ObjectPageModel>>
+public class LxObjectPagesVisualizer(List<ObjectPage> @struct) : AbstractStructVisualizer<List<ObjectPage>>(@struct)
 {
-    public ObjectPagesVisualizer(List<ObjectPageModel> @struct) : base(@struct)
-    {
-    }
-
     public override DataTable ToDataTable()
     {
-        return FlowerReflection.ListToDataTable(_struct.Select(s => s.Page));
+        return FlowerReflection.ListToDataTable(_struct);
     }
 
     public override Region ToRegion()
@@ -23,7 +19,6 @@ public class ObjectPagesVisualizer : AbstractStructVisualizer<List<ObjectPageMod
             "The Object page table provides information about a logical \n " +
             "page in  an object.  A  logical  page  may be  an enumerated \n " +
             "page, a pseudo page or an iterated  page. ",
-            ToDataTable()
-        );
+            ToDataTable());
     }
 }

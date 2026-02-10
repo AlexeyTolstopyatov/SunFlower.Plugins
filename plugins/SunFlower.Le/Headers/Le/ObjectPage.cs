@@ -5,8 +5,9 @@ namespace SunFlower.Le.Headers.Le;
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct ObjectPage
 {
-    public ushort HighPage; //
-    public byte LowPage;    //
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+    public byte[] PageIndex;    // 16 + 8 = 24
+    
     public byte Flags;      // :D!!!
     [Flags]
     public enum PageFlags : byte
@@ -22,4 +23,8 @@ public struct ObjectPage
         
         LastPageInFile  = 0b10000000
     }
+    public long LongPageIndex => 
+        ((uint)PageIndex[0] << 16) | 
+        ((uint)PageIndex[1] << 8) | 
+        PageIndex[2];
 }

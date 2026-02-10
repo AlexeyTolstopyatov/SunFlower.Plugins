@@ -5,17 +5,9 @@ namespace SunFlower.Le.Headers.Le;
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct VxdHeader
 {
-    [MarshalAs(UnmanagedType.U4)] 
-    public uint LE_WindowsResOffset;
-    
-    [MarshalAs(UnmanagedType.U4)] 
-    public uint LE_WindowsResLength;
-    
-    [MarshalAs(UnmanagedType.U2)]
-    public ushort LE_DeviceID;
-    
-    [MarshalAs(UnmanagedType.U1)]
-    public byte LE_DDKMinor;
-    [MarshalAs(UnmanagedType.U1)]
-    public byte LE_DDKMajor;
+    public uint e32_winresoff;
+    public uint e32_winreslen;
+    public ushort e32_devid;
+    public byte e32_minor_ddk;
+    public byte e32_major_ddk;
 }

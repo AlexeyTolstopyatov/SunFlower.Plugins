@@ -8,9 +8,9 @@ using SunFlower.Le.Visualizers;
 
 namespace SunFlower.Le.Services;
 
-public class LxTableManager
+public class LeTableManager
 {
-    private LxDumpManager _manager;
+    private LeDumpManager _manager;
     
     public List<Region> ObjectRegions { get; } = [];
     public List<Region> EntryTableRegions { get; } = [];
@@ -18,14 +18,23 @@ public class LxTableManager
     public List<string> Characteristics { get; private set; } = [];
     public List<Region> Headers { get; } = [];
     
-    public LxTableManager(LxDumpManager manager)
+    public LeTableManager(LeDumpManager manager)
     {
         _manager = manager;
         // list of init queue
         MakeCharacteristics();
-        Headers.Add(new LxHeaderVisualizer(_manager.LxHeader).ToRegion());
-        ObjectRegions.Add(new LxObjectPagesVisualizer(_manager.Pages).ToRegion());
-        ObjectRegions.Add(new LxObjectTableVisualizer(_manager.Objects).ToRegion());
+        Headers.Add(new LeHeaderVisualizer(_manager.LeHeader).ToRegion());
+        if (_manager.VxdHeader.e32_major_ddk != 0)
+        {
+            Headers.Add(new VxdHeaderVisualizer(_manager.VxdHeader).ToRegion());
+            Headers.Add(new VxdDescriptionBlockVisualizer(_manager.VxdDescriptionBlock).ToRegion());
+            
+            if (_manager.VxdHeader.e32_winresoff != 0)
+                Headers.Add(new VxdResourcesHeaderVisualizer(_manager.VxdResources).ToRegion());
+        }
+        
+        ObjectRegions.Add(new LeObjectPagesVisualizer(_manager.Pages).ToRegion());
+        ObjectRegions.Add(new LeObjectTableVisualizer(_manager.Objects).ToRegion());
         MakeEntryTable();
         ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
         MakeFixupRecords();
@@ -227,43 +236,43 @@ public class LxTableManager
         md.Add("### Program Header information");
         md.Add($"Project Name: {name}");
         md.Add($"Description: \"{description}\"");
-        md.Add("Target CPU: `" + GetCpuType(_manager.LxHeader.e32_cpu) + "`");
-        md.Add("Target OS: `" + GetOsType(_manager.LxHeader.e32_os) + "`");
-        md.Add($"Module Version: {_manager.LxHeader.e32_ver >> 16}.{_manager.LxHeader.e32_ver & 0xFFFF}");
+        md.Add("Target CPU: `" + GetCpuType(_manager.LeHeader.e32_cpu) + "`");
+        md.Add("Target OS: `" + GetOsType(_manager.LeHeader.e32_os) + "`");
+        md.Add($"Module Version: {_manager.LeHeader.e32_ver >> 16}.{_manager.LeHeader.e32_ver & 0xFFFF}");
         
         md.Add($"Resolved \"{_manager.ResidentNames[0].String}\" module flags:");
-        foreach (var flag in GetModuleFlags(_manager.LxHeader.e32_mflags))
+        foreach (var flag in GetModuleFlags(_manager.LeHeader.e32_mflags))
         {
             md.Add($" - `{flag}`");
         }
         
-        if (_manager.LxHeader.e32_magic is 0x454c or 0x4c45)
+        if (_manager.LeHeader.e32_magic is 0x454c or 0x4c45)
             md.Add("> ![WARNING]\r\n> Signature of FLAT EXEC header is `LE`. This FLAT EXEC binary contains **16 and 32-bit code** You have a risk of corrupted bytes-interpretation.");
         
         md.Add($"\r\n### {name} Loader requirements");
         md.Add("This summary contains hexadecimal values from FLAT EXEC header.");
-        md.Add($" - Heap=`{_manager.LxHeader.e32_heapsize:X}`");
-        md.Add($" - Stack={_manager.LxHeader.e32_stacksize:X}");
+        md.Add($" - Heap=`{_manager.LeHeader.e32_heapsize:X}`");
+        md.Add($" - Stack=`not_set`");
         md.Add($" - DOS/2 `CS:IP=0x{_manager.MzHeader.cs:X4}:0x{_manager.MzHeader.ip:X4}`");
         md.Add($" - DOS/2 `SS:SP=0x{_manager.MzHeader.ss:X4}:0x{_manager.MzHeader.sp:X4}`");
         
-        var cs = _manager.LxHeader.e32_startobj;
-        var ip = _manager.LxHeader.e32_eip;
+        var cs = _manager.LeHeader.e32_startobj;
+        var ip = _manager.LeHeader.e32_eip;
         md.Add($" - OS/2 `CS:EIP=0x{cs:X8}:0x{ip:X8}`"); // <-- handle it
-        md.Add($" - OS/2 `SS:ESP=0x{_manager.LxHeader.e32_stackobj:X8}:0x{_manager.LxHeader.e32_esp:X8}`");
+        md.Add($" - OS/2 `SS:ESP=0x{_manager.LeHeader.e32_stackobj:X8}:0x{_manager.LeHeader.e32_esp:X8}`");
         
         md.Add($"> ![TIP]\r\n> Flat EXE Header holds on relative EntryPoint address. EntryPoint stores in [#{cs}](decimal) object with `EIP=0x{ip:X}` offset");
         
         md.Add($"\r\n### {name} Entities summary");
         md.Add("This summary contains decimal values took from FLAT EXEC Header model.");
-        md.Add($"1. Number of Objects - `{_manager.LxHeader.e32_objcnt}`");
-        md.Add($"2. Number of Importing Modules - `{_manager.LxHeader.e32_impmodcnt}`");
-        md.Add($"3. Number of Preload Pages - `{_manager.LxHeader.e32_preload}`");
-        md.Add($"4. Number of Automatic Data segments - `{_manager.LxHeader.e32_autodata}`");
-        md.Add($"5. Number of Resources - `{_manager.LxHeader.e32_rsrccnt}`");
-        md.Add($"6. Number of NonResident names - `{_manager.LxHeader.e32_cbnrestab}`");
-        md.Add($"7. Number of Directives - `{_manager.LxHeader.e32_dircnt}`");
-        md.Add($"8. Number of Demand Instances - `{_manager.LxHeader.e32_instdemand}`");
+        md.Add($"1. Number of Objects - `{_manager.LeHeader.e32_objcnt}`");
+        md.Add($"2. Number of Importing Modules - `{_manager.LeHeader.e32_impmodcnt}`");
+        md.Add($"3. Number of Preload Pages - `{_manager.LeHeader.e32_preload}`");
+        md.Add($"4. Number of Automatic Data segments - `{_manager.LeHeader.e32_autodata}`");
+        md.Add($"5. Number of Resources - `{_manager.LeHeader.e32_rsrccnt}`");
+        md.Add($"6. Number of NonResident names - `{_manager.LeHeader.e32_cbnrestab}`");
+        md.Add($"7. Number of Directives - `{_manager.LeHeader.e32_dircnt}`");
+        md.Add($"8. Number of Demand Instances - `{_manager.LeHeader.e32_instdemand}`");
         
         Characteristics = md;
     }
