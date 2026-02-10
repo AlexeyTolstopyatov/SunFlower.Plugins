@@ -4,7 +4,7 @@ using SunFlower.Le.Services;
 
 namespace SunFlower.Le;
 
-[FlowerSeedContract(4, 0, 0)]
+[FlowerSeedContract(4, 5, 0)]
 public class LinearExecutable32FlowerSeed : IFlowerSeed
 {
     public string Seed => "Sunflower OS/2-ArcaOS LX x86";

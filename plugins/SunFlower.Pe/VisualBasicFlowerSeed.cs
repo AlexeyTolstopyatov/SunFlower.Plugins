@@ -5,7 +5,7 @@ using SunFlower.Pe.Services;
 
 namespace SunFlower.Pe;
 
-[FlowerSeedContract(3, 0, 0)]
+[FlowerSeedContract(4, 5, 0)]
 public class VisualBasicFlowerSeed : IFlowerSeed
 {
     public string Seed => "Sunflower VisualBasic Runtime";
