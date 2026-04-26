@@ -31,18 +31,22 @@ public class LeDumpManager : UnsafeManager
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         using var reader = new BinaryReader(stream);
-
+        // LE programs are follow by old standard: unprotected executable code (MZ program)
+        // follows first. Fully protected-mode executables will be later (since OS/2 3+) in LX programs
         MzHeader = Fill<MzHeader>(reader);
         if (MzHeader.e_sign is not 0x5a4d and 0x4d5a)
             throw new NotSupportedException("Doesn't have MZ magic");
-
+        
         _offset = MzHeader.e_lfanew;
         stream.Position = MzHeader.e_lfanew;
         
         LeHeader = Fill<LeHeader>(reader);
-        
+        // LX executables are incompatible with next definitions. Split them. 
         if (LeHeader.e32_magic != 0x454c && LeHeader.e32_magic != 0x4c45)
             throw new NotSupportedException("Doesn't have 'LE' magic");
+        // I'm not done for variuos architectures. Supported only LE byte/word ordering 
+        if (LeHeader.e32_worder != 0 || LeHeader.e32_border != 0)
+            throw new NotSupportedException($"Current endian rules {LeHeader.e32_worder:X2}|{LeHeader.e32_border} unsupported!");
         
         var namesTables = new NamesTablesManager(reader, Offset(LeHeader.e32_restab), LeHeader.e32_nrestab);
         var importNames = new ImportNamesManager(reader, Offset(LeHeader.e32_impmod), LeHeader.e32_impmodcnt);
@@ -63,8 +67,8 @@ public class LeDumpManager : UnsafeManager
         
         FixupRecords = fixupRecords;
         ImportRecords = imports;
-        
-        ObjectsOffsets = GetObjectsOffsets(); // <-- get the tip
+        // Load all memory pages offsets
+        ObjectsOffsets = GetObjectsOffsets();
         
         // after all I need Driver information
         if (LeHeader.e32_winresoff == 0)
