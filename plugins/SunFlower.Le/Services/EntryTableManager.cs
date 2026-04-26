@@ -81,7 +81,7 @@ public class EntryTableManager(
                 Type = type, 
                 ObjectNumber = objNumber
             };
-
+            
             for (var i = 0; i < count; i++)
             {
                 Entry entry;
@@ -89,7 +89,6 @@ public class EntryTableManager(
                 {
                     case EntryBundleType._16Bit:
                         // custom: try to get name by ordinal.
-                        
                         entry = new Entry16Bit
                         {
                             Flags = reader.ReadByte(),

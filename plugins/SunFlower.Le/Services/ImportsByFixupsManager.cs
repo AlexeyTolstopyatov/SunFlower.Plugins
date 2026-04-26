@@ -5,7 +5,7 @@ namespace SunFlower.Le.Services;
 
 public class ImportsByFixupsManager
 {
-    string TryRead(ref BinaryReader reader, int length)
+    private string TryRead(ref BinaryReader reader, int length)
     {
         try
         {
@@ -23,10 +23,9 @@ public class ImportsByFixupsManager
     public List<ImportRecord> GetImportsByFixups(
         BinaryReader reader, 
         List<FixupRecord> records, 
-        long impModOffset,
+        string[] impModules,
         long impProcOffset)
     {
-        var modules = GetModules(reader, impModOffset);
         var imports = new List<ImportRecord>();
         foreach (var record in records)
         {
@@ -34,7 +33,7 @@ public class ImportsByFixupsManager
             {
                 case FixupTargetImportedOrdinal ordinal:
                     imports.Add(new ImportRecord(
-                        modules.ElementAt(ordinal.ModuleOrdinal - 1), 
+                        impModules[ordinal.ModuleOrdinal - 1], 
                         $"@{ordinal.ImportOrdinal}", 
                         null));
                     break;
@@ -44,7 +43,7 @@ public class ImportsByFixupsManager
                     var len = reader.ReadByte();
 
                     imports.Add(new ImportRecord(
-                        modules.ElementAt(name.ModuleOrdinal - 1),
+                        impModules[name.ModuleOrdinal - 1],
                         TryRead(ref reader, len),
                         impProcOffset + name.ProcedureNameOffset
                     ));

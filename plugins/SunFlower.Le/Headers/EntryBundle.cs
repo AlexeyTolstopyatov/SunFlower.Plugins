@@ -18,55 +18,46 @@ public class Entry16Bit : Entry
 {
     public override EntryBundleType Type => EntryBundleType._16Bit;
     public ushort ObjectNumber { get; init; }
-    public string EntryName { get; set; }
+    public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public ushort Offset { get; init; }
     public string EntryType => (Flags & 0x01) != 0 ? "[EXPORT]" : "[STATIC]";
-    public string ObjectOffsets => ObjectNumber == 0 ? "`absolute`" : "`virtual`";
 }
 
 public class Entry32Bit : Entry
 {
     public override EntryBundleType Type => EntryBundleType._32Bit;
-    public ushort ObjectNumber { get; init; }
-    public string EntryName { get; set; }
+    public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public uint Offset { get; init; }
     public string EntryType => (Flags & 0x01) != 0 ? "[EXPORT]" : "[STATIC]";
-    public string ObjectOffsets => ObjectNumber == 0 ? "`absolute`" : "`virtual`";
 }
 
 public class Entry286CallGate : Entry
 {
     public override EntryBundleType Type => EntryBundleType._286CallGate;
-    public ushort ObjectNumber { get; init; }
-    public string EntryName { get; set; }
+    public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public ushort Offset { get; init; }
     public ushort CallGateSelector { get; init; } // reserved. Fills by loader
     public string EntryType => (Flags & 0x01) != 0 
         ? "[EXPORT]" 
         : "[STATIC]";
-    public string ObjectOffsets => ObjectNumber == 0 
-        ? "`absolute`" 
-        : "`virtual`";
 }
 
 public class EntryForwarder : Entry
 {
     public override EntryBundleType Type => EntryBundleType.Forwarder;
-    public string EntryName { get; set; }
+    public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public ushort Reserved { get; init; }
     public uint ModuleOrdinal { get; init; }
     public uint OffsetOrOrdinal { get; init; }
-    public string ObjectOffsets => "`virtual`";
 }
 
 public class EntryUnused : Entry
 {
     public override EntryBundleType Type => EntryBundleType.Unused;
-    public string ObjectOffsets => "`nope`";
     public string EntryType => "[SPACE]";
 }
 

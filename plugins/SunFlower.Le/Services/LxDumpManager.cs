@@ -37,13 +37,13 @@ public class LxDumpManager : UnsafeManager
             throw new NotSupportedException("Doesn't have 'LX' magic");
     
         var namesTables = new NamesTablesManager(reader, Offset(LxHeader.e32_restab), LxHeader.e32_nrestab);
-        var importNames = new ImportNamesManager(reader, Offset(LxHeader.e32_impmod));
+        var importNames = new ImportNamesManager(reader, Offset(LxHeader.e32_impmod), LxHeader.e32_impmodcnt);
         var entryTable = new EntryTableManager(reader, Offset(LxHeader.e32_enttab), namesTables.ResidentNames, namesTables.NonResidentNames, importNames.ImportingModules, Offset(LxHeader.e32_impproc));
         var objectTable = new LxObjectsManager(reader, Offset(LxHeader.e32_objtab), LxHeader.e32_objcnt);
         var pagesTable = new LxPagesManager(reader, Offset(LxHeader.e32_objmap), LxHeader.e32_mpages);
         var fixupPageOffsets = new FixupPagesManager(reader, Offset(LxHeader.e32_fpagetab), LxHeader.e32_mpages).GetFixupPageOffsets();
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LxHeader.e32_frectab), fixupPageOffsets);
-        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, Offset(LxHeader.e32_impmod), Offset(LxHeader.e32_impproc));
+        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, importNames.ImportingModules.ToArray(), Offset(LxHeader.e32_impproc));
         
         NonResidentNames = namesTables.NonResidentNames;
         ResidentNames = namesTables.ResidentNames;

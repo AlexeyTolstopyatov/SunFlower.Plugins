@@ -45,14 +45,14 @@ public class LeDumpManager : UnsafeManager
             throw new NotSupportedException("Doesn't have 'LE' magic");
         
         var namesTables = new NamesTablesManager(reader, Offset(LeHeader.e32_restab), LeHeader.e32_nrestab);
-        var importNames = new ImportNamesManager(reader, Offset(LeHeader.e32_impmod));
+        var importNames = new ImportNamesManager(reader, Offset(LeHeader.e32_impmod), LeHeader.e32_impmodcnt);
         var entryTable = new EntryTableManager(reader, Offset(LeHeader.e32_enttab), namesTables.ResidentNames, namesTables.NonResidentNames, importNames.ImportingModules, Offset(LeHeader.e32_impproc));
         var objectTable = new LeObjectsManager(reader, Offset(LeHeader.e32_objtab), LeHeader.e32_objcnt);
         var pagesTable = new LePagesManager(reader, Offset(LeHeader.e32_objmap), LeHeader.e32_mpages);
         
         var fixupPageOffsets = new FixupPagesManager(reader, Offset(LeHeader.e32_fpagetab), LeHeader.e32_mpages).GetFixupPageOffsets();
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LeHeader.e32_frectab), fixupPageOffsets);
-        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, Offset(LeHeader.e32_impmod), Offset(LeHeader.e32_impproc));
+        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, importNames.ImportingModules.ToArray(), Offset(LeHeader.e32_impproc));
         
         NonResidentNames = namesTables.NonResidentNames;
         ResidentNames = namesTables.ResidentNames;

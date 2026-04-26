@@ -289,7 +289,7 @@ public class LeTableManager
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
-                            unpacked.ObjectOffsets
+                            bundle.ObjectNumber == 0 ? "[FILE]" : "[VIRTUAL]"
                         );
                         ++entryCounter;
                     }
@@ -308,7 +308,7 @@ public class LeTableManager
                             "0x" + unpacked.Offset.ToString("X8"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
-                            unpacked.ObjectOffsets
+                            bundle.ObjectNumber == 0 ? "[FILE]" : "[VIRTUAL]"
                         );
                         ++entryCounter;
                     }
@@ -327,7 +327,7 @@ public class LeTableManager
                             "0x" + unpacked.Offset.ToString("X4"),
                             unpacked.EntryType,
                             "0x" + unpacked.Flags.ToString("X2"),
-                            unpacked.ObjectOffsets,
+                            bundle.ObjectNumber == 0 ? "[FILE]" : "[VIRTUAL]",
                             "0x" + unpacked.CallGateSelector.ToString("X4")
                         );
                         ++entryCounter;
