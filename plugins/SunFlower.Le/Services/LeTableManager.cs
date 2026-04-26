@@ -36,7 +36,6 @@ public class LeTableManager
         public long DataOffset;
         public uint Heap;
     }
-
     
     private LeDumpManager _manager;
     public List<Region> MainRegions { get; set; } = [];
@@ -50,27 +49,41 @@ public class LeTableManager
     {
         _manager = manager;
         // list of init queue
-        MakeCharacteristics();
-        CollectMain();
+        AddMainCharacteristics();
+        AddModuleCharacteristics();
+        
         Headers.Add(new LeHeaderVisualizer(_manager.LeHeader).ToRegion());
+
         if (_manager.IsDriver)
         {
             Headers.Add(new VxdHeaderVisualizer(_manager.VxdHeader).ToRegion());
+            Headers.Add(new VxdResourcesHeaderVisualizer(_manager.VxdResources).ToRegion());
             Headers.Add(new VxdDescriptionBlockVisualizer(_manager.VxdDescriptionBlock).ToRegion());
-            
-            if (_manager.VxdHeader.e32_winresoff != 0)
-                Headers.Add(new VxdResourcesHeaderVisualizer(_manager.VxdResources).ToRegion());
         }
         
-        ObjectRegions.Add(new LeObjectPagesVisualizer(_manager.Pages).ToRegion());
-        ObjectRegions.Add(new LeObjectTableVisualizer(_manager.Objects).ToRegion());
-        ObjectRegions.Add(new Region("File offsets to the objects", "", FlowerReflection.ListToDataTable(_manager.ObjectsOffsets)));
-        MakeEntryTable();
-        ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
-        MakeFixupRecords();
-        MakeImports();
-        NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
-        NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
+        if (_manager.Pages.Count > 0)
+            ObjectRegions.Add(new LeObjectPagesVisualizer(_manager.Pages).ToRegion());
+        
+        if (_manager.Objects.Count > 0)
+        {
+            ObjectRegions.Add(new LeObjectTableVisualizer(_manager.Objects).ToRegion());
+            ObjectRegions.Add(new Region("Pages File Offsets", "This table contains file offsets to each memory page", FlowerReflection.ListToDataTable(_manager.ObjectsOffsets)));
+        }
+        if (_manager.EntryBundles.Count > 0)
+            AddEntryTable();
+        
+        if (_manager.FixupPageOffsets.Count > 0)
+            ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
+        
+        AddFixupRecords();
+        if (_manager.ImportRecords.Count > 0)
+            AddImports();
+        
+        if (_manager.ResidentNames.Count > 0)
+            NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
+        
+        if (_manager.ResidentNames.Count > 0)
+            NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
     private (long code, long stack) ForRealMode()
     {
@@ -123,7 +136,7 @@ public class LeTableManager
             GetOffset((int)_manager.LeHeader.e32_autodata, 0)
         );
     }
-    private void CollectMain()
+    private void AddMainCharacteristics()
     {
         var os = GetOsType(_manager.LeHeader.e32_os);
         var cpu = GetCpuType(_manager.LeHeader.e32_cpu);
@@ -175,7 +188,7 @@ public class LeTableManager
         MainRegions.Add(commonRegion);
         MainRegions.Add(programRegion);
     }
-    private void MakeFixupRecords()
+    private void AddFixupRecords()
     {
         var internalFixups = _manager.FixupRecords
             .Where(t => t.TargetData is FixupTargetInternal)
@@ -185,14 +198,18 @@ public class LeTableManager
             .Select(t => (FixupTargetInternal)t.TargetData)
             .ToList();
         
-        ObjectRegions.Add(new Region(
-            "### Internal Fixups | Common data", 
-            "Every relocation record has same columns what describe next uniqe information", FlowerReflection.ListToDataTable(internalFixups)));
-        ObjectRegions.Add(new Region(
-            "### Internal Fixups | Target data",
-            "Those blocks fully depend on previous headers details",
-            FlowerReflection.ListToDataTable(internalFixupsData)
+        if (internalFixups.Count > 0 )
+        {
+            ObjectRegions.Add(new Region(
+                "Internal Fixups | Common data",
+                "Every relocation record has same columns what describe next uniqe information",
+                FlowerReflection.ListToDataTable(internalFixups)));
+            ObjectRegions.Add(new Region(
+                "Internal Fixups | Target data",
+                "Those blocks fully depend on previous headers details",
+                FlowerReflection.ListToDataTable(internalFixupsData)
             ));
+        }
 
         var importFixups = _manager.FixupRecords
             .Where(t => t.TargetFlags is 0x02 or 0x01)
@@ -201,52 +218,61 @@ public class LeTableManager
             .Select(t => t.TargetData)
             .ToList();
         
-        // those tables are same with fields
-        var dt = new DataTable
+        if (importFixups.Count > 0)
         {
-            Columns = { "Module#:2", "Procedure@:4/Procedure Offset:4" }
-        };
-
-        foreach (var rec in importFixupsData)
-        {
-            switch (rec)
+            var dt = new DataTable
             {
-                case FixupTargetImportedName i:
-                    dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
-                    break;
-                case FixupTargetImportedOrdinal o:
-                    dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
-                    break;
+                Columns = { "Module#:2", "Procedure@:4/Procedure Offset:4" }
+            };
+
+            foreach (var rec in importFixupsData)
+            {
+                switch (rec)
+                {
+                    case FixupTargetImportedName i:
+                        dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
+                        break;
+                    case FixupTargetImportedOrdinal o:
+                        dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
+                        break;
+                }
             }
+            ObjectRegions.Add(new Region(
+                "Import Fixups | Common data",
+                "Importing procedures fixups",
+                FlowerReflection.ListToDataTable(importFixups)));
+            ObjectRegions.Add(new Region(
+                "Import Fixups | Target data",
+                "Importing procedures unique data",
+                dt));
         }
-        ObjectRegions.Add(new Region(
-            "Import Fixups | Common data",
-            "Importing procedures fixups",
-            FlowerReflection.ListToDataTable(importFixups)));
-        ObjectRegions.Add(new Region(
-            "Import Fixups | Target data",
-            "Importing procedures unique data",
-            dt));
+        
+        // those tables are same with fields
+        
         var entFixups = _manager.FixupRecords
             .Where(t => t.TargetData is FixupTargetEntryTable)
             .ToList();
         var entFixupData = entFixups
             .Select(t => (FixupTargetEntryTable)t.TargetData)
             .ToList();
-        ObjectRegions.Add(
-            new Region(
-            "Fixups via EntryTable | Common data",
-            "IBM documentation tells, this record is a pointer to entry table of _current module_",
-            FlowerReflection.ListToDataTable(entFixups)
+        
+        if (entFixups.Count > 0)
+        {
+            ObjectRegions.Add(
+                new Region(
+                    "Fixups via EntryTable | Common data",
+                    "IBM documentation tells, this record is a pointer to entry table of _current module_",
+                    FlowerReflection.ListToDataTable(entFixups)
+                ));
+            ObjectRegions.Add(new Region(
+                "Fixups via EntryTable | Target data",
+                "This is a list of indexes/ordinals of entries in entry table of current module",
+                FlowerReflection.ListToDataTable(entFixupData)
             ));
-        ObjectRegions.Add(new Region(
-            "Fixups via EntryTable | Target data",
-            "This is a list of indexes/ordinals of entries in entry table of current module",
-            FlowerReflection.ListToDataTable(entFixupData)
-            ));
+        }
     }
 
-    private void MakeImports()
+    private void AddImports()
     {
         var reg = new Region(
             "Imports",
@@ -255,12 +281,18 @@ public class LeTableManager
         
         NamesRegions.Add(reg);
     }
-    private void MakeEntryTable()
+    private void AddEntryTable()
     {
         var bundleCounter = 1;
         var entryCounter = 1;
         foreach (var bundle in _manager.EntryBundles)
         {
+            if (bundle.Count == 0)
+            {
+                ++bundleCounter;
+                continue;
+            }
+            
             var head = $"EntryTable Bundle #{bundleCounter}";
             StringBuilder contentBuilder = new();
             
@@ -354,8 +386,9 @@ public class LeTableManager
                         ++entryCounter;
                     }
                     break;
+                case EntryBundleType.Unused:
                 default:
-                    entries = new();
+                    entries = new DataTable();
                     entryCounter += bundle.Count;
                     break;
             }
@@ -363,7 +396,7 @@ public class LeTableManager
             bundleCounter++;
         }
     }
-    private void MakeCharacteristics()
+    private void AddModuleCharacteristics()
     {
         List<string> md = [];
         var name = _manager.ResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";

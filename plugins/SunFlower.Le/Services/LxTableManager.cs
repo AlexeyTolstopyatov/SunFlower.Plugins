@@ -51,17 +51,31 @@ public class LxTableManager
     {
         _manager = manager;
         // list of init queue
-        CollectMain();
-        MakeCharacteristics();
+        AddMainCharacteristics();
+        AddModuleCharacteristics();
+        
         Headers.Add(new LxHeaderVisualizer(_manager.LxHeader).ToRegion());
-        ObjectRegions.Add(new LxObjectPagesVisualizer(_manager.Pages).ToRegion());
-        ObjectRegions.Add(new LxObjectTableVisualizer(_manager.Objects).ToRegion());
-        MakeEntryTable();
-        ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
-        MakeFixupRecords();
-        MakeImports();
-        NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
-        NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
+        if (_manager.Pages.Count > 0)
+            ObjectRegions.Add(new LxObjectPagesVisualizer(_manager.Pages).ToRegion());
+        
+        if (_manager.Objects.Count > 0)
+            ObjectRegions.Add(new LxObjectTableVisualizer(_manager.Objects).ToRegion());
+        
+        if (_manager.EntryBundles.Count > 0)
+            AddEntryTable();
+        
+        if (_manager.FixupPageOffsets.Count > 0)
+            ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
+        
+        AddFixupRecords();
+        if (_manager.ImportRecords.Count > 0)
+            AddImports();
+        
+        if (_manager.ResidentNames.Count > 0)
+            NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
+        
+        if (_manager.ResidentNames.Count > 0)
+            NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
     private (long code, long stack) ForRealMode()
     {
@@ -115,7 +129,7 @@ public class LxTableManager
             GetOffset((int)_manager.LxHeader.e32_autodata, 0)
         );
     }
-    private void CollectMain()
+    private void AddMainCharacteristics()
     {
         var os = GetOsType(_manager.LxHeader.e32_os);
         var cpu = GetCpuType(_manager.LxHeader.e32_cpu);
@@ -136,7 +150,7 @@ public class LxTableManager
 
         var commonRegion = new Region(
             "About",
-            $"This is shortened properties of {FlowerReport.SafeString(_manager.ResidentNames[0].String)}",
+            $"This is general properties of {FlowerReport.SafeString(_manager.ResidentNames[0].String)}",
             FlowerReflection.GetNameValueTable(common));
         var (rCodeOffset, rBssOffset) = ForRealMode();
         var (pCodeOffset, pBssOffset, dataOffset) = ForProtectedMode();
@@ -151,7 +165,7 @@ public class LxTableManager
             },
             new()
             {
-                Runs = "V86/Protected mode", 
+                Runs = "Protected mode", 
                 Heap = _manager.LxHeader.e32_heapsize, 
                 Stack = _manager.LxHeader.e32_stacksize, 
                 CodeOffset = pCodeOffset, 
@@ -167,7 +181,7 @@ public class LxTableManager
         MainRegions.Add(commonRegion);
         MainRegions.Add(programRegion);
     }
-    private void MakeFixupRecords()
+    private void AddFixupRecords()
     {
         var internalFixups = _manager.FixupRecords
             .Where(t => t.TargetData is FixupTargetInternal)
@@ -177,14 +191,18 @@ public class LxTableManager
             .Select(t => (FixupTargetInternal)t.TargetData)
             .ToList();
         
-        ObjectRegions.Add(new Region(
-            "Internal Fixups | Common data", 
-            "Every relocation record has same columns what describe next uniqe information", FlowerReflection.ListToDataTable(internalFixups)));
-        ObjectRegions.Add(new Region(
-            "Internal Fixups | Target data",
-            "Those blocks fully depend on previous headers details",
-            FlowerReflection.ListToDataTable(internalFixupsData)
-        ));
+        if (internalFixups.Count > 0 )
+        {
+            ObjectRegions.Add(new Region(
+                "Internal Fixups | Common data",
+                "Every relocation record has same columns what describe next uniqe information",
+                FlowerReflection.ListToDataTable(internalFixups)));
+            ObjectRegions.Add(new Region(
+                "Internal Fixups | Target data",
+                "Those blocks fully depend on previous headers details",
+                FlowerReflection.ListToDataTable(internalFixupsData)
+            ));
+        }
 
         var importFixups = _manager.FixupRecords
             .Where(t => t.TargetFlags is 0x02 or 0x01)
@@ -193,51 +211,60 @@ public class LxTableManager
             .Select(t => t.TargetData)
             .ToList();
         
-        // those tables are same with fields
-        var dt = new DataTable
+        if (importFixups.Count > 0)
         {
-            Columns = { "Module#:2", "Procedure@:4/Procedure Offset:4" }
-        };
-
-        foreach (var rec in importFixupsData)
-        {
-            switch (rec)
+            var dt = new DataTable
             {
-                case FixupTargetImportedName i:
-                    dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
-                    break;
-                case FixupTargetImportedOrdinal o:
-                    dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
-                    break;
+                Columns = { "Module#:2", "Procedure@:4/Procedure Offset:4" }
+            };
+
+            foreach (var rec in importFixupsData)
+            {
+                switch (rec)
+                {
+                    case FixupTargetImportedName i:
+                        dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
+                        break;
+                    case FixupTargetImportedOrdinal o:
+                        dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
+                        break;
+                }
             }
+            ObjectRegions.Add(new Region(
+                "Import Fixups | Common data",
+                "Importing procedures fixups",
+                FlowerReflection.ListToDataTable(importFixups)));
+            ObjectRegions.Add(new Region(
+                "Import Fixups | Target data",
+                "Importing procedures unique data",
+                dt));
         }
-        ObjectRegions.Add(new Region(
-            "Import Fixups | Common data",
-            "Importing procedures fixups",
-            FlowerReflection.ListToDataTable(importFixups)));
-        ObjectRegions.Add(new Region(
-            "Import Fixups | Target data",
-            "Importing procedures unique data",
-            dt));
+        
+        // those tables are same with fields
+        
         var entFixups = _manager.FixupRecords
             .Where(t => t.TargetData is FixupTargetEntryTable)
             .ToList();
         var entFixupData = entFixups
             .Select(t => (FixupTargetEntryTable)t.TargetData)
             .ToList();
-        ObjectRegions.Add(
-            new Region(
-            "Fixups via EntryTable | Common data",
-            "IBM documentation tells, this record is a pointer to entry table of _current module_",
-            FlowerReflection.ListToDataTable(entFixups)
+        
+        if (entFixups.Count > 0)
+        {
+            ObjectRegions.Add(
+                new Region(
+                    "Fixups via EntryTable | Common data",
+                    "IBM documentation tells, this record is a pointer to entry table of _current module_",
+                    FlowerReflection.ListToDataTable(entFixups)
+                ));
+            ObjectRegions.Add(new Region(
+                "Fixups via EntryTable | Target data",
+                "This is a list of indexes/ordinals of entries in entry table of current module",
+                FlowerReflection.ListToDataTable(entFixupData)
             ));
-        ObjectRegions.Add(new Region(
-            "Fixups via EntryTable | Target data",
-            "This is a list of indexes/ordinals of entries in entry table of current module",
-            FlowerReflection.ListToDataTable(entFixupData)
-            ));
+        }
     }
-    private void MakeImports()
+    private void AddImports()
     {
         var reg = new Region(
             "Imports",
@@ -246,12 +273,19 @@ public class LxTableManager
         
         NamesRegions.Add(reg);
     }
-    private void MakeEntryTable()
+    private void AddEntryTable()
     {
         var bundleCounter = 1;
         var entryCounter = 1;
         foreach (var bundle in _manager.EntryBundles)
         {
+            // If bundle doesn't have entries -> skip it
+            if (bundle.Count == 0)
+            {
+                bundleCounter++;
+                continue;
+            }
+            
             var head = $"EntryTable Bundle #{bundleCounter}";
             StringBuilder contentBuilder = new();
             
@@ -342,6 +376,7 @@ public class LxTableManager
                         ++entryCounter;
                     }
                     break;
+                case EntryBundleType.Unused:
                 default:
                     entries = new DataTable();
                     entryCounter += bundle.Count;
@@ -351,7 +386,7 @@ public class LxTableManager
             bundleCounter++;
         }
     }
-    private void MakeCharacteristics()
+    private void AddModuleCharacteristics()
     {
         List<string> md = [];
         var description = _manager.NonResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.NonResidentNames[0].String) : "`<missing>`";
@@ -362,9 +397,6 @@ public class LxTableManager
         md.Add($"Resolved \"{_manager.ResidentNames[0].String}\" module flags:");
         
         md.AddRange(GetModuleFlags(_manager.LxHeader.e32_mflags).Select(flag => $" - `{flag}`"));
-
-        if (_manager.LxHeader.e32_magic is 0x454c or 0x4c45)
-            md.Add("> ![WARNING]\r\n> Signature of FLAT EXEC header is `LE`. This FLAT EXEC binary contains **16 and 32-bit code** You have a risk of corrupted bytes-interpretation.");
         
         Characteristics = md;
     }
