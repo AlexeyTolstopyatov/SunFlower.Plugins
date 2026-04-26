@@ -16,7 +16,7 @@ public class NonResidentNamesVisualizer(List<ExportRecord> @struct)
     public override Region ToRegion()
     {
         return new Region(
-            "### NonResident Names | Public Exports",
+            "NonResident Names",
             "Non-resident  names  are  not  kept in memory \r\n" +
             "and are read from the  EXE file when a  dynamic  link reference\r\n" +
             "is made.  Exported  entry  point  names  that are infrequently\r\n" +

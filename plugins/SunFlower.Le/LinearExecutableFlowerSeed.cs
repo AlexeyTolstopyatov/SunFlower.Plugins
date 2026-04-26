@@ -3,7 +3,8 @@ using SunFlower.Abstractions.Types;
 using SunFlower.Le.Services;
 
 namespace SunFlower.Le;
-[FlowerSeedContract(4,5,0)]
+[Flower(SeedTarget.Data)]
+[FlowerSeedContract(5,0,0)]
 public class LinearExecutableFlowerSeed : IFlowerSeed
 {
     public int Main(string path)

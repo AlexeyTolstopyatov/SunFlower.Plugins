@@ -19,7 +19,7 @@ public class VxdResourcesHeaderVisualizer : AbstractStructVisualizer<VxdResource
     public override Region ToRegion()
     {
         return new Region(
-            "### VxD: Resources Heading", 
+            "VxD: Resources Heading", 
             "This block usually has Windows 95+ VxD drivers\r\n" +
             "(having .vxd extension). If this block contains zeros -- \r\n" +
             "resources which follows next are missing or not nested in this block. (see Linear Executable resources table.)\r\n", 

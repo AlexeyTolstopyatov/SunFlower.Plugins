@@ -1,52 +1,113 @@
-﻿using SunFlower.Abstractions;
+﻿using System.Runtime.Serialization;
+using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 
 namespace SunFlower.Ne.Services;
 
 public class NeTableManager
 {
+    public class ProgramSummary(
+        string cpu,
+        Version link,
+        string os,
+        Version osVersion,
+        int segments,
+        int bundles,
+        int exports,
+        int imports)
+    {
+        public string Cpu = cpu;
+        public Version Link = link;
+        public string Os = os;
+        public Version OsVersion = osVersion;
+       
+        public int Segments = segments;
+        public int Bundles = bundles;
+        public int Exports = exports;
+        public int Imports = imports;
+    }
+    public class Program
+    {
+        public string Runs = string.Empty;
+        public long CodeOffset;
+        public long StackOffset;
+        public long DataOffset;
+        public uint Heap;
+        public uint Stack;
+    }
+    
     private readonly NeDumpManager _manager;
     public NeTableManager(NeDumpManager manager)
     {
         _manager = manager;
-        MakeCharacteristics();
+        CommonCharacteristics();
+        MakeProgramDetails();
         
-        Regions.Add(new MzStructVisualizer(manager.MzHeader).ToRegion());
-        Regions.Add(new NeStructVisualizer(manager.NeHeader).ToRegion());
-        Regions.Add(new NeSegmentsVisualizer(manager.Segments).ToRegion());
+        NestedDataRegions.Add(new MzStructVisualizer(manager.MzHeader).ToRegion());
+        NestedDataRegions.Add(new NeStructVisualizer(manager.NeHeader).ToRegion());
+        NestedDataRegions.Add(new NeSegmentsVisualizer(manager.Segments).ToRegion());
         foreach (var segment in manager.Segments.Where(s => s.Relocations.Count > 0).Distinct())
         {
-            Regions.Add(new NeSegmentRelocationsVisualization(segment).ToRegion());
+            NestedDataRegions.Add(new NeSegmentRelocationsVisualization(segment).ToRegion());
         }
         var index = 1;
         foreach (var bundle in _manager.EntryBundles)
         {
-            Regions.Add(new NeEntryBundleVisualizer(bundle, index).ToRegion());
+            NestedDataRegions.Add(new NeEntryBundleVisualizer(bundle, index).ToRegion());
             ++index;
         }
         
         if (manager.ResidentNames.Count > 0)
-            Regions.Add(new NeNamesVisualizer(manager.ResidentNames, true).ToRegion());
+            NestedDataRegions.Add(new NeNamesVisualizer(manager.ResidentNames, true).ToRegion());
         if (manager.NonResidentNames.Count > 0)
-            Regions.Add(new NeNamesVisualizer(manager.NonResidentNames, false).ToRegion());
+            NestedDataRegions.Add(new NeNamesVisualizer(manager.NonResidentNames, false).ToRegion());
         if (manager.ModuleReferences.Count > 0)
-            Regions.Add(new NeModuleReferencesVisualizer(manager.ModuleReferences).ToRegion());
+            NestedDataRegions.Add(new NeModuleReferencesVisualizer(manager.ModuleReferences).ToRegion());
         if (manager.ImportModels.Count > 0)
-            Regions.Add(new NeImportsVisualizer(manager.ImportModels).ToRegion());
+            NestedDataRegions.Add(new NeImportsVisualizer(manager.ImportModels).ToRegion());
         
     }
-    public string[] Characteristics { get; private set; } = [];
-    public List<Region> Regions { get; } = [];
 
-    private void MakeCharacteristics()
+    public List<Region> MainRegions { get; private set; } = [];
+    public string[] Characteristics { get; private set; } = [];
+    public List<Region> NestedDataRegions { get; } = [];
+
+    private (long code, long stack, long data) ForProtectedMode()
     {
-        List<string> md = [];
+        var cs = _manager.NeHeader.NE_CsIp >> 16;
+        var ip = _manager.NeHeader.NE_CsIp & 0xFFFF;
+        var ss = _manager.NeHeader.NE_SsSp >> 16;
+        var sp = _manager.NeHeader.NE_SsSp & 0xFFFF;
         
-        //md.Add("_Main information details took from Windows New segmented EXE header (called `IMAGE_OS2_HEADER` in Win32 API)_\r\n");
-        md.Add("\r\n# Image");
-        md.Add($"Project Name: {FlowerReport.SafeString(_manager.ResidentNames[0].String)}"); // <-- first name always project-name
-        md.Add($"Description: {FlowerReport.SafeString(_manager.NonResidentNames[0].String)}");
+        var shift = _manager.NeHeader.NE_Alignment == 0 
+            ? 1 << 9 
+            : 1 << _manager.NeHeader.NE_Alignment;
+        var codeOffset = cs <= _manager.Segments.Count && cs != 0 
+            ? _manager.Segments[(int)(cs - 1)].FileOffset * shift + ip
+            : 0;
+        var bssOffset = ss <= _manager.Segments.Count && ss != 0 
+            ? _manager.Segments[(int)ss - 1].FileOffset * shift + sp
+            : 0;
+        var dataOffset = _manager.NeHeader.NE_AutoSegment != 0 
+            ? _manager.Segments[_manager.NeHeader.NE_AutoSegment - 1].FileOffset * shift
+            : _manager.Segments.First(x => (x.Flags & 0x007) == 1).FileOffset * shift;
         
+        return (codeOffset, bssOffset, dataOffset);
+    }
+
+    private (long code, long stack) ForRealMode()
+    {
+        var codeOffset = _manager.MzHeader.cs != 0
+            ? _manager.MzHeader.e_pars * 0x10 + _manager.MzHeader.cs * 0x10 + _manager.MzHeader.ip
+            : 0;
+        var bssOffset = _manager.MzHeader.ss != 0
+            ? _manager.MzHeader.e_pars * 0x10 + _manager.MzHeader.ss * 0x10 + _manager.MzHeader.sp
+            : 0;
+        return (codeOffset, bssOffset);
+    }
+    
+    private void CommonCharacteristics()
+    {
         var os = _manager.NeHeader.NE_OS switch
         {
             0x0 => "Any OS supported", // set for *.FON. means "any OS supported"  
@@ -60,71 +121,73 @@ public class NeTableManager
 
         var cpu = _manager.NeHeader.NE_Flags switch
         {
-            var f when (f & 0x4) != 0 => "I8086",
-            var f when (f & 0x5) != 0 => "I286",
-            var f when (f & 0x6) != 0 => "I386",
-            var f when (f & 0x7) != 0 => "I8087",
+            var f when (f & 0x4) != 0 => "Intel 8086",
+            var f when (f & 0x5) != 0 => "Intel 80286",
+            var f when (f & 0x6) != 0 => "Intel 80386",
+            var f when (f & 0x7) != 0 => "Intel 8087",
             _ => "Not specified"
         };
-        
-        md.Add("\r\n### Hardware/Software");
-        md.Add($" - Operating system: `{os}`");
-        md.Add($" - CPU architecture: `{cpu}`");
-        md.Add($" - LINK.EXE version: {_manager.NeHeader.NE_LinkerVersion}.{_manager.NeHeader.NE_LinkerRevision}");
-        if (_manager.NeHeader.NE_LinkerVersion < 5)
-            md.Add("> [!WARNING]\r\n>LINK.EXE 4.0 and earlier has another logic for EntryPoints table. You have a risk of wrong bytes interpretation");
-        
-        if (_manager.NeHeader.NE_WindowsVersionMajor > 0)
-            md.Add($" - Microsoft Windows version: {_manager.NeHeader.NE_WindowsVersionMajor}.{_manager.NeHeader.NE_WindowsVersionMinor}");
-        
-        md.Add("\r\n## Loader requirements");
-        
-        md.Add($" - Heap=`{_manager.NeHeader.NE_Heap:X4}`");
-        md.Add($" - Stack=`{_manager.NeHeader.NE_Stack:X4}`");
-        md.Add($" - Swap area=`{_manager.NeHeader.NE_SwapArea:X4}`");
-        
-        md.Add($" - DOS/2 `CS:IP`={FlowerReport.FarHexString(_manager.MzHeader.cs, _manager.MzHeader.ip, true)}");
-        md.Add($" - DOS/2 `SS:SP`={FlowerReport.FarHexString(_manager.MzHeader.ss, _manager.MzHeader.sp, true)}");
-        
-        var cs = _manager.NeHeader.NE_CsIp >> 16;
-        var ip = _manager.NeHeader.NE_CsIp & 0xFFFF;
-        var ss = _manager.NeHeader.NE_SsSp >> 16;
-        var sp = _manager.NeHeader.NE_SsSp & 0xFFFF;
-        
-        md.Add($" - Win16-OS/2 `CS:IP`={FlowerReport.FarHexString((ushort)cs, (ushort)ip, true)}"); // <-- handle it
-        md.Add($" - Win16-OS/2 `SS:SP`={FlowerReport.FarHexString((ushort)ss, (ushort)sp, true)}"); // <-- handle it
-        md.Add($"> [!TIP]\r\n> Segmented EXE Header holds on relative EntryPoint address.\r\n> EntryPoint stores in [#{cs}](decimal) segment with 0x{ip:X} offset");
-        
-        md.Add("\r\n## Entities summary");
-        md.Add($"1. Number of Segments - `{_manager.NeHeader.NE_SegmentsCount}`");
-        md.Add($"2. Number of Entry Bundles - `{_manager.NeHeader.NE_EntriesCount}`");
-        md.Add($"3. Number of Moveable Entries - `{_manager.NeHeader.NE_MovableEntriesCount}`");
-        md.Add($"4. Number of Automatic Data segments - `{_manager.NeHeader.NE_AutoSegment}`");
-        md.Add($"5. Number of Resources - `{_manager.NeHeader.NE_ResourcesCount}`");
-        md.Add($"6. Number of `BYTE`s in NonResident names table - `{_manager.NeHeader.NE_NonResidentNamesCount}`");
-        md.Add($"7. Number of Module References - `{_manager.NeHeader.NE_ModReferencesCount}`");
-        
-        // program flags 
-        var p = _manager.NeHeader.NE_Flags;
-        md.Add($"## Program Flags");
-        md.Add("### How data is handled?");
-        md.Add(@"
-In 16-bit DOS/Windows terminology, `DGROUP` is a segment class that referring
-to segments that are used for data.
+        var common = new ProgramSummary(
+            os: os,
+            cpu: cpu,
+            link: new Version(_manager.NeHeader.NE_LinkerVersion, _manager.NeHeader.NE_LinkerRevision),
+            osVersion: new Version(_manager.NeHeader.NE_WindowsVersionMajor, _manager.NeHeader.NE_WindowsVersionMinor),
+            segments: _manager.Segments.Count,
+            bundles: _manager.EntryBundles.Count,
+            exports: _manager.NonResidentNames.Count + _manager.ResidentNames.Count,
+            imports: _manager.ImportModels.Count
+        );
+        var (rCodeOffset, rBssOffset) = ForRealMode();
+        var (pCodeOffset, pBssOffset, dataOffset) = ForProtectedMode();
+        Program[] programs =
+        [   
+            new()
+            {
+                Runs = "Real mode", 
+                CodeOffset = rCodeOffset, 
+                StackOffset = rBssOffset
+            },
+            new()
+            {
+                Runs = "Protected mode", 
+                Heap = _manager.NeHeader.NE_Heap, 
+                Stack = _manager.NeHeader.NE_Stack, 
+                CodeOffset = pCodeOffset, 
+                StackOffset = pBssOffset, 
+                DataOffset = dataOffset
+            }
+        ];
 
-Win16 used segmentation to permit a DLL or program to have multiple
-instances along with an instance handle and manage multiple data
-segments. In example: allowed one `NOTEPAD.EXE` code segment to execute
-multiple instances of the notepad application.");
+        var commonRegion = new Region(
+            "About", 
+            $"This is shorten properties of `{FlowerReport.SafeString(_manager.ResidentNames[0].String)}`", 
+            FlowerReflection.GetNameValueTable(common)
+        );
+        var programRegion = new Region(
+            "Executable images",
+            "This table represents possible program images, exactly how it could be run from Win16-OS/2 and DOS environments", 
+            FlowerReflection.ListToDataTable(programs)
+        );
+        MainRegions.Add(commonRegion);
+        MainRegions.Add(programRegion);
+    }
+    
+    private void MakeProgramDetails()
+    {
+        List<string> md = [];
+        var p = _manager.NeHeader.NE_Flags;
+        md.Add($"## Program Flags\n");
+        md.Add("### How data is handled?\n");
+        
         if ((p & 0x0000) != 0) md.Add(" - `NO_AUTODATA`");
         if ((p & 0x0002) != 0) md.Add(" - `SINGLE_DATA` (shared among instances of the same program)");
         if ((p & 0x2000) != 0) md.Add(" - `MULTIPLE_DATA` (separate for each instance of the same program)");
         
-        md.Add("### How application runs?");
+        md.Add("### How application runs?\n");
         if ((p & 0x0008) != 0) md.Add(" - `PROTECTED_MODE_ONLY`");
-        if ((p & 0x0004) != 0) md.Add(" - `GLOBINIT` - (global initialization)");
+        if ((p & 0x0004) != 0) md.Add(" - `GLOBAL_INIT` - (global initialization)");
         
-        md.Add("### Extra details?");
+        md.Add("### Extra details?\n");
         if ((p & 0x2000) != 0) md.Add(" - `LINK_ERR` - (module has errors after linkage. Don't try to run it)");
         if ((p & 0x8000) != 0) md.Add(" - `LIB_MODULE` (dynamically linked module)");
         
@@ -139,7 +202,7 @@ multiple instances of the notepad application.");
         
         if (_manager.NeHeader.NE_FlagOthers != 0)
         {
-            md.Add("## OS/2 Flags");
+            md.Add("## OS/2 Flags\n");
             md.Add("Sunflower plugin shows this section if `e_flagothers` not zero. But I also suppose if appflags has `OS2_FAMILY`" +
                    " or `e_os` equals 0x1, what means OS/2 - you can read this section.");
             var o = _manager.NeHeader.NE_FlagOthers;

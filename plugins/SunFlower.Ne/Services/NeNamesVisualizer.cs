@@ -42,8 +42,8 @@ while it loaded in memory";
     {
         var heading = resident switch
         {
-            true => "### Resident Names Table",
-            false => "### Non-Resident Names Table"
+            true => "Resident Names Table",
+            false => "Non-Resident Names Table"
         };
         
         return new Region(heading, ToString(), ToDataTable());

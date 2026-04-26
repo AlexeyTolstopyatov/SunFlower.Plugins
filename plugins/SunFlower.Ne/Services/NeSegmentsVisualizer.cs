@@ -53,6 +53,6 @@ public class NeSegmentsVisualizer(List<SegmentModel> @struct) : AbstractStructVi
 
     public override Region ToRegion()
     {
-        return new Region("## Segments", ToString(), ToDataTable());
+        return new Region("Segments", ToString(), ToDataTable());
     }
 }

@@ -99,7 +99,7 @@ or `DDB`. (may be it calls "Driver/Device Description Block")
 
 ```java
 public class DescriptionBlock {
-	public int DDB_Next;         /* VMM RESERVED FIELD */
+    public int DDB_Next;         /* VMM RESERVED FIELD */
     public short DDB_SDK_Version;     /* INIT <DDK_VERSION> RESERVED FIELD */
     public short DDB_Req_Device_Number;   /* INIT <UNDEFINED_DEVICE_ID> */
     public byte DDB_Dev_Major_Version;    /* INIT <0> Major device number */

@@ -19,7 +19,7 @@ public class VxdHeaderVisualizer : AbstractStructVisualizer<VxdHeader>
     public override Region ToRegion()
     {
         return new Region(
-            "### Windows Virtual Device Driver",
+            "Windows Virtual Device Driver",
             "VxD is the device driver model used in Microsoft Windows/386 2.x," +
             "the 386 enhanced mode of Windows 3.x, Windows 9x,\r\n and to some extent also by the Novell DOS 7, " +
             "OpenDOS 7.01, and DR-DOS 7.02+ multitask manager (TASKMGR). " +

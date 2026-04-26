@@ -36,6 +36,6 @@ each entry is 2 bytes long.";
 
     public override Region ToRegion()
     {
-        return new Region("### Module Refernces Table", ToString(), ToDataTable());
+        return new Region("Module References Table", ToString(), ToDataTable());
     }
 }

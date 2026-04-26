@@ -10,10 +10,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\SunFlower.Abstractions\SunFlower.Abstractions.fsproj" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Reference Include="SunFlower.Abstractions">
         <HintPath>..\..\..\SunFlower\src\SunFlower\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
       </Reference>

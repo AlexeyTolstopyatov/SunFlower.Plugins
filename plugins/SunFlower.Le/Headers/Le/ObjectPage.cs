@@ -7,8 +7,7 @@ public struct ObjectPage
 {
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
     public byte[] PageIndex;    // 16 + 8 = 24
-    
-    public byte Flags;      // :D!!!
+    public byte Flags;
     [Flags]
     public enum PageFlags : byte
     {
@@ -20,10 +19,9 @@ public struct ObjectPage
         ZeroFilled      = 0b00000011,
         
         // status (2-6 unknown)
-        
         LastPageInFile  = 0b10000000
     }
-    public long LongPageIndex => 
+    public uint LongPageIndex => 
         ((uint)PageIndex[0] << 16) | 
         ((uint)PageIndex[1] << 8) | 
         PageIndex[2];

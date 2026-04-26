@@ -3,8 +3,8 @@ using SunFlower.Abstractions.Types;
 using SunFlower.Le.Services;
 
 namespace SunFlower.Le;
-
-[FlowerSeedContract(4, 5, 0)]
+[Flower(SeedTarget.Data)]
+[FlowerSeedContract(5, 0, 0)]
 public class LinearExecutable32FlowerSeed : IFlowerSeed
 {
     public string Seed => "Sunflower OS/2-ArcaOS LX x86";
@@ -15,7 +15,8 @@ public class LinearExecutable32FlowerSeed : IFlowerSeed
         {
             LxDumpManager dumpManager = new(path);
             LxTableManager tableManager = new(dumpManager);
-
+            
+            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.MainRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, tableManager.Characteristics));
             
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.Headers));

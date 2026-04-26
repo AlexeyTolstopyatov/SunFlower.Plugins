@@ -63,6 +63,6 @@ are 16-bit too.";
 
     public override Region ToRegion()
     {
-        return new Region("## Windows-OS/2 Executable Header", ToString(), ToDataTable());
+        return new Region("Windows-OS/2 Executable Header", ToString(), ToDataTable());
     }
 }

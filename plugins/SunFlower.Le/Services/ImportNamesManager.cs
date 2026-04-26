@@ -1,4 +1,6 @@
-﻿namespace SunFlower.Le.Services;
+﻿using System.Text;
+
+namespace SunFlower.Le.Services;
 
 public class ImportNamesManager
 {
@@ -9,7 +11,7 @@ public class ImportNamesManager
         var size = reader.ReadByte();
         while (size != 0)
         {
-            ImportingModules.Add(new string(reader.ReadChars(size)));
+            ImportingModules.Add(Encoding.ASCII.GetString(reader.ReadBytes(size)));
             size = reader.ReadByte();
         }
     }

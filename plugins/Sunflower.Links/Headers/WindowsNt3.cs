@@ -1,7 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 
 namespace Sunflower.Links.Headers;
-
+[StructLayout(LayoutKind.Sequential, Pack = 1, CharSet = CharSet.Unicode)]
 public struct WindowsNt3
 {
     public ushort TimerEmulationFlag;

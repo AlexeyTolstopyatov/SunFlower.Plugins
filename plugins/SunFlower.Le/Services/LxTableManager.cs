@@ -10,6 +10,34 @@ namespace SunFlower.Le.Services;
 
 public class LxTableManager
 {
+    internal class ProgramSummary(
+        string cpu,
+        Version link,
+        string os,
+        int objects,
+        int bundles,
+        int exports,
+        int imports)
+    {
+        public string Cpu = cpu;
+        public Version Link = link;
+        public string Os = os;
+        
+        public int Objects = objects;
+        public int Bundles = bundles;
+        public int Exports = exports;
+        public int Imports = imports;
+    }
+    internal class Program
+    {
+        public string Runs = string.Empty;
+        public long CodeOffset;
+        public long StackOffset;
+        public long DataOffset;
+        public uint Heap;
+        public uint Stack;
+    }
+
     private LxDumpManager _manager;
     
     public List<Region> ObjectRegions { get; } = [];
@@ -17,11 +45,13 @@ public class LxTableManager
     public List<Region> NamesRegions { get; } = [];
     public List<string> Characteristics { get; private set; } = [];
     public List<Region> Headers { get; } = [];
+    public List<Region> MainRegions { get; private set; } = [];
     
     public LxTableManager(LxDumpManager manager)
     {
         _manager = manager;
         // list of init queue
+        CollectMain();
         MakeCharacteristics();
         Headers.Add(new LxHeaderVisualizer(_manager.LxHeader).ToRegion());
         ObjectRegions.Add(new LxObjectPagesVisualizer(_manager.Pages).ToRegion());
@@ -33,7 +63,110 @@ public class LxTableManager
         NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
         NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
+    private (long code, long stack) ForRealMode()
+    {
+        var codeOffset = _manager.MzHeader.cs != 0
+            ? _manager.MzHeader.e_pars * 0x10 + _manager.MzHeader.cs * 0x10 + _manager.MzHeader.ip
+            : 0;
+        var bssOffset = _manager.MzHeader.ss != 0
+            ? _manager.MzHeader.e_pars * 0x10 + _manager.MzHeader.ss * 0x10 + _manager.MzHeader.sp
+            : 0;
+        return (codeOffset, bssOffset);
+    }
 
+    private long GetOffset(int objectIndex, uint rva)
+    {
+        if (objectIndex < 1 || objectIndex > _manager.Objects.Count)
+            return 0;
+
+        var obj = _manager.Objects[objectIndex - 1];
+        var pageSize = _manager.LxHeader.e32_pagesize;
+        var pageShift = _manager.LxHeader.e32_pageshift;
+
+        // Which object page 
+        var pageIndexInObject = rva / pageSize;
+        if (pageIndexInObject >= obj.PageMapEntries)
+            return 0; // out of bounds
+
+        // Global# into Object Page Table
+        var globalPageIdx = obj.PageMapIndex + pageIndexInObject;
+        if (globalPageIdx < 1 || globalPageIdx > _manager.Pages.Count)
+            return 0;
+
+        var page = _manager.Pages[(int)globalPageIdx - 1];
+
+        // Physical... still exists?
+        var flags = page.Flags;
+        if ((flags & 0x03) == 0x02 || (flags & 0x03) == 0x03)
+            return 0; // invalid/iterated page
+
+        var pageFileOffset = _manager.LxHeader.e32_mpages + // DataPagesOffset
+                             ((long)page.PageOffset << (int)pageShift);
+
+        // Offset inside the page
+        var offsetInPage = rva % pageSize;
+        return pageFileOffset + offsetInPage;
+    }
+    private (long code, long stack, long data) ForProtectedMode()
+    {
+        return (
+            GetOffset((int)_manager.LxHeader.e32_startobj, _manager.LxHeader.e32_eip), 
+            GetOffset((int)_manager.LxHeader.e32_stackobj, _manager.LxHeader.e32_esp),
+            GetOffset((int)_manager.LxHeader.e32_autodata, 0)
+        );
+    }
+    private void CollectMain()
+    {
+        var os = GetOsType(_manager.LxHeader.e32_os);
+        var cpu = GetCpuType(_manager.LxHeader.e32_cpu);
+        var ver = new Version((int)(_manager.LxHeader.e32_ver >> 16), (int)(_manager.LxHeader.e32_ver & 0xFFFF));
+        var objects = _manager.Objects.Count;
+        var exports = _manager.ResidentNames.Count + _manager.NonResidentNames.Count;
+        var bundles = _manager.EntryBundles.Count;
+        var imports = _manager.ImportRecords.Count;
+        var common = new ProgramSummary(
+            cpu,
+            ver,
+            os,
+            objects,
+            bundles,
+            exports,
+            imports
+        );
+
+        var commonRegion = new Region(
+            "About",
+            $"This is shortened properties of {FlowerReport.SafeString(_manager.ResidentNames[0].String)}",
+            FlowerReflection.GetNameValueTable(common));
+        var (rCodeOffset, rBssOffset) = ForRealMode();
+        var (pCodeOffset, pBssOffset, dataOffset) = ForProtectedMode();
+        
+        Program[] programs =
+        [   
+            new()
+            {
+                Runs = "Real mode", 
+                CodeOffset = rCodeOffset, 
+                StackOffset = rBssOffset
+            },
+            new()
+            {
+                Runs = "V86/Protected mode", 
+                Heap = _manager.LxHeader.e32_heapsize, 
+                Stack = _manager.LxHeader.e32_stacksize, 
+                CodeOffset = pCodeOffset, 
+                StackOffset = pBssOffset, 
+                DataOffset = dataOffset
+            }
+        ];
+        var programRegion = new Region(
+            "Executable images",
+            "This table represents possible program images, exactly how it could be run from Win16-OS/2 and DOS environments", 
+            FlowerReflection.ListToDataTable(programs)
+        );
+        MainRegions.Add(commonRegion);
+        MainRegions.Add(programRegion);
+    }
     private void MakeFixupRecords()
     {
         var internalFixups = _manager.FixupRecords
@@ -45,13 +178,13 @@ public class LxTableManager
             .ToList();
         
         ObjectRegions.Add(new Region(
-            "### Internal Fixups | Common data", 
+            "Internal Fixups | Common data", 
             "Every relocation record has same columns what describe next uniqe information", FlowerReflection.ListToDataTable(internalFixups)));
         ObjectRegions.Add(new Region(
-            "### Internal Fixups | Target data",
+            "Internal Fixups | Target data",
             "Those blocks fully depend on previous headers details",
             FlowerReflection.ListToDataTable(internalFixupsData)
-            ));
+        ));
 
         var importFixups = _manager.FixupRecords
             .Where(t => t.TargetFlags is 0x02 or 0x01)
@@ -79,11 +212,11 @@ public class LxTableManager
             }
         }
         ObjectRegions.Add(new Region(
-            "### Import Fixups | Common data",
+            "Import Fixups | Common data",
             "Importing procedures fixups",
             FlowerReflection.ListToDataTable(importFixups)));
         ObjectRegions.Add(new Region(
-            "### Import Fixups | Target data",
+            "Import Fixups | Target data",
             "Importing procedures unique data",
             dt));
         var entFixups = _manager.FixupRecords
@@ -94,21 +227,20 @@ public class LxTableManager
             .ToList();
         ObjectRegions.Add(
             new Region(
-            "### Fixups via EntryTable | Common data",
+            "Fixups via EntryTable | Common data",
             "IBM documentation tells, this record is a pointer to entry table of _current module_",
             FlowerReflection.ListToDataTable(entFixups)
             ));
         ObjectRegions.Add(new Region(
-            "### Fixups via EntryTable | Target data",
+            "Fixups via EntryTable | Target data",
             "This is a list of indexes/ordinals of entries in entry table of current module",
             FlowerReflection.ListToDataTable(entFixupData)
             ));
     }
-
     private void MakeImports()
     {
         var reg = new Region(
-            "### Imports",
+            "Imports",
             @"All imports resolved using fixup records table for this module.", 
             FlowerReflection.ListToDataTable(_manager.ImportRecords));
         
@@ -120,7 +252,7 @@ public class LxTableManager
         var entryCounter = 1;
         foreach (var bundle in _manager.EntryBundles)
         {
-            var head = $"### EntryTable Bundle #{bundleCounter}";
+            var head = $"EntryTable Bundle #{bundleCounter}";
             StringBuilder contentBuilder = new();
             
             contentBuilder.AppendLine(bundle.TypeDescription);
@@ -224,46 +356,15 @@ public class LxTableManager
         List<string> md = [];
         var description = _manager.NonResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.NonResidentNames[0].String) : "`<missing>`";
         var name = _manager.ResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";
-        md.Add("### Program Header information");
         md.Add($"Project Name: {name}");
         md.Add($"Description: \"{description}\"");
-        md.Add("Target CPU: `" + GetCpuType(_manager.LxHeader.e32_cpu) + "`");
-        md.Add("Target OS: `" + GetOsType(_manager.LxHeader.e32_os) + "`");
-        md.Add($"Module Version: {_manager.LxHeader.e32_ver >> 16}.{_manager.LxHeader.e32_ver & 0xFFFF}");
         
         md.Add($"Resolved \"{_manager.ResidentNames[0].String}\" module flags:");
-        foreach (var flag in GetModuleFlags(_manager.LxHeader.e32_mflags))
-        {
-            md.Add($" - `{flag}`");
-        }
         
+        md.AddRange(GetModuleFlags(_manager.LxHeader.e32_mflags).Select(flag => $" - `{flag}`"));
+
         if (_manager.LxHeader.e32_magic is 0x454c or 0x4c45)
             md.Add("> ![WARNING]\r\n> Signature of FLAT EXEC header is `LE`. This FLAT EXEC binary contains **16 and 32-bit code** You have a risk of corrupted bytes-interpretation.");
-        
-        md.Add($"\r\n### {name} Loader requirements");
-        md.Add("This summary contains hexadecimal values from FLAT EXEC header.");
-        md.Add($" - Heap=`{_manager.LxHeader.e32_heapsize:X}`");
-        md.Add($" - Stack={_manager.LxHeader.e32_stacksize:X}");
-        md.Add($" - DOS/2 `CS:IP=0x{_manager.MzHeader.cs:X4}:0x{_manager.MzHeader.ip:X4}`");
-        md.Add($" - DOS/2 `SS:SP=0x{_manager.MzHeader.ss:X4}:0x{_manager.MzHeader.sp:X4}`");
-        
-        var cs = _manager.LxHeader.e32_startobj;
-        var ip = _manager.LxHeader.e32_eip;
-        md.Add($" - OS/2 `CS:EIP=0x{cs:X8}:0x{ip:X8}`"); // <-- handle it
-        md.Add($" - OS/2 `SS:ESP=0x{_manager.LxHeader.e32_stackobj:X8}:0x{_manager.LxHeader.e32_esp:X8}`");
-        
-        md.Add($"> ![TIP]\r\n> Flat EXE Header holds on relative EntryPoint address. EntryPoint stores in [#{cs}](decimal) object with `EIP=0x{ip:X}` offset");
-        
-        md.Add($"\r\n### {name} Entities summary");
-        md.Add("This summary contains decimal values took from FLAT EXEC Header model.");
-        md.Add($"1. Number of Objects - `{_manager.LxHeader.e32_objcnt}`");
-        md.Add($"2. Number of Importing Modules - `{_manager.LxHeader.e32_impmodcnt}`");
-        md.Add($"3. Number of Preload Pages - `{_manager.LxHeader.e32_preload}`");
-        md.Add($"4. Number of Automatic Data segments - `{_manager.LxHeader.e32_autodata}`");
-        md.Add($"5. Number of Resources - `{_manager.LxHeader.e32_rsrccnt}`");
-        md.Add($"6. Number of NonResident names - `{_manager.LxHeader.e32_cbnrestab}`");
-        md.Add($"7. Number of Directives - `{_manager.LxHeader.e32_dircnt}`");
-        md.Add($"8. Number of Demand Instances - `{_manager.LxHeader.e32_instdemand}`");
         
         Characteristics = md;
     }
@@ -283,7 +384,6 @@ public class LxTableManager
             _ => $"Unknown: (0x{cpuType:X4})"
         };
     }
-    
     private static string GetOsType(ushort osType)
     {
         return osType switch

@@ -32,10 +32,10 @@ public class LxDumpManager : UnsafeManager
         _offset = MzHeader.e_lfanew;
         stream.Position = MzHeader.e_lfanew;
         LxHeader = Fill<LxHeader>(reader);
-        if (LxHeader.e32_magic != 0x454c && LxHeader.e32_magic != 0x4c45)
-            if (LxHeader.e32_magic != 0x584c && LxHeader.e32_magic != 0x4c58)
-                throw new NotSupportedException("Doesn't have 'LX' magic");
         
+        if (LxHeader.e32_magic != 0x584c && LxHeader.e32_magic != 0x4c58)
+            throw new NotSupportedException("Doesn't have 'LX' magic");
+    
         var namesTables = new NamesTablesManager(reader, Offset(LxHeader.e32_restab), LxHeader.e32_nrestab);
         var importNames = new ImportNamesManager(reader, Offset(LxHeader.e32_impmod));
         var entryTable = new EntryTableManager(reader, Offset(LxHeader.e32_enttab), namesTables.ResidentNames, namesTables.NonResidentNames, importNames.ImportingModules, Offset(LxHeader.e32_impproc));

@@ -82,7 +82,7 @@ public class EntryBundle
         EntryBundleType._16Bit => "`.VALID_16`",
         EntryBundleType._32Bit => "`.VALID_32`",
         EntryBundleType._286CallGate => "`.CALLGATE`",
-        EntryBundleType.Forwarder => "`.FWD`",
+        EntryBundleType.Forwarder => "`.FORWARDER`",
         EntryBundleType.Unused => "`.UNUSED`",
         _ => "`.WHAT?`"
     };
@@ -96,7 +96,7 @@ public class EntryBundle
         EntryBundleType._286CallGate =>
             "Bundle has entries which require execute in 2-ring (see Intel architecture). CallGate selector may be empty. It fills by `.EXE`/`.DLL` loader while app is running.",
         EntryBundleType.Forwarder =>
-            "Bundle has importing entries offsets to procedure name ASCII or import by ordinal. EntryTable may contains importing entries.",
+            "Bundle has importing entries offsets to procedure name ASCII or import by ordinal. ",
         EntryBundleType.Unused =>
             "Unused bundle not a runtime error. This is a space between exporting or importing entries for skipping enumeration. (@12, ..., @100).",
         _ => "If you see it - this bundle or all table entirely has a segmentation errors."

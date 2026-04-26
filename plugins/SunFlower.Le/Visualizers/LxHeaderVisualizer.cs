@@ -15,7 +15,7 @@ public class LxHeaderVisualizer(LxHeader @struct) : AbstractStructVisualizer<LxH
     public override Region ToRegion()
     {
         return new Region(
-            "### IBM Linear Executable Header",
+            "Linear eXecutable Header",
             "Linear Executable is an executable file format in the EXE family. " +
             "It was used by 32-bit OS/2, by some DOS extenders, " +
             "This format is exactly IBM modified solution and a successor to NE (New Executable).\r\n",

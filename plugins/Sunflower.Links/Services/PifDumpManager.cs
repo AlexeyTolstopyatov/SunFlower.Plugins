@@ -45,26 +45,27 @@ public class PifDumpManager : UnsafeManager
         var length = reader.ReadUInt16();
         long baseSectionPosition = 0;
         
-        if (length == 0x171) // Old Format (Windows 1.X/2.X)
+        switch (length)
         {
-            stream.Position = 0;
-            MicrosoftPifEx = Fill<MicrosoftPifEx>(reader);
-            baseSectionPosition = 0x171;
-        }
-        else if (length > 0x171) // New Format
-        {
-            // Section
-            stream.Position = 0x0;
-            MicrosoftPifEx = Fill<MicrosoftPifEx>(reader);
+            // Old Format (Windows 1.X/2.X)
+            case 0x171:
+                stream.Position = 0;
+                MicrosoftPifEx = Fill<MicrosoftPifEx>(reader);
+                baseSectionPosition = 0x171;
+                break;
+            // New Format
+            case > 0x171:
+                // Section
+                stream.Position = 0x0;
+                MicrosoftPifEx = Fill<MicrosoftPifEx>(reader);
 
-            // Section Header
-            stream.Position = 0x171;
-            SectionHeads.Add(Fill<PifSectionHead>(reader));
-            baseSectionPosition = 0x187;
-        }
-        else
-        {
-            throw new InvalidDataException("Unable to read file like Program Information File (PIF)");
+                // Section Header
+                stream.Position = 0x171;
+                SectionHeads.Add(Fill<PifSectionHead>(reader));
+                baseSectionPosition = 0x187;
+                break;
+            default:
+                throw new InvalidDataException("Unable to read file like Program Information File (PIF)");
         }
 
         var nextSectionOffset = baseSectionPosition;
@@ -79,7 +80,6 @@ public class PifDumpManager : UnsafeManager
             
             var sectionHead = Fill<PifSectionHead>(reader);
             SectionHeads.Add(sectionHead);
-            
             if (sectionHead.NextSectionOffset == 0xFFFF)
             {
                 // 0xFFFF offset means last section in file. Force exit.
@@ -90,9 +90,9 @@ public class PifDumpManager : UnsafeManager
             if (sectionHead.NextSectionOffset < stream.Length)
             {
                 stream.Position = sectionHead.PartitionOffset;
-                
+
                 ReadSectionData(reader, sectionHead);
-                
+
                 stream.Position = sectionHead.NextSectionOffset;
             }
             else

@@ -19,7 +19,7 @@ public class LeHeaderVisualizer : AbstractStructVisualizer<LeHeader>
     public override Region ToRegion()
     {
         return new Region(
-            "## Microsoft Linear Executable Header",
+            "Linear Executable Header",
             "Was used by Microsoft and IBM for containers of 16 and 32 bit code" +
             "Usually for Windows 3x and Windows 9x they were Virtual Device Drivers" + 
             "For MS-DOS they were Watcom and DOS4G/W extenders and for first 32-bit OS/2 it was main format of executables and DLLs" +

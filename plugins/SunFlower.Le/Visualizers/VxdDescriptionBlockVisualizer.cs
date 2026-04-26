@@ -19,7 +19,7 @@ public class VxdDescriptionBlockVisualizer : AbstractStructVisualizer<VxdDescrip
     public override Region ToRegion()
     {
         return new Region(
-            "### VxD: Description Block",
+            "VxD: Description Block",
             "The device declaration block describes the virtual device to the VMM. \r\n" +
             "It provides a VxD mnemonic, usually a somewhat descriptive title using V as the prefix and D \r\n as " +
             "the suffix, such as VXFERD, suggesting a virtual transfer driver. \r\n" +

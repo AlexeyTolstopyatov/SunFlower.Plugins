@@ -13,12 +13,11 @@ public struct LeHeader
     public const ushort LeCpuR2000 = 0x40;
     public const ushort LeCpuR6000 = 0x41;
     public const ushort LeCpuR4000 = 0x42;
-    public const uint LeTypeInitPer = 1 << 2;     // initialise per process.
+    public const uint LeTypeInitPer = 1 << 2;     // initialize per process.
     public const uint LeTypeIntFixup = 1 << 4;     // no internal fixups.
     public const uint LeTypeExtFixup = 1 << 5;     // no external fixups.
     public const uint LeTypeNoLoad = 1 << 13;    // module not loadable.
     public const uint LeTypeDll = 1 << 15;    // DLL
-
     
     public const ushort LeOsOs2 = 1;
     public const ushort LeOsWindows = 2;
@@ -70,16 +69,16 @@ public struct LeHeader
     public uint e32_instpreload;
     public uint e32_instdemand;
     public uint e32_heapsize;
-    public uint e32_stacksize;
+    //public uint e32_stacksize;
 
     /// Padding between two Windows386 headers:
     /// After LE header can follow the VXD_HEADER which
     /// describes library as specific Windows Virtual Driver 
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-    public uint[] e32_padding;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)]
+    public byte[] e32_padding;
     
-    public uint e32_winresoff ;
-    public uint e32_winreslen ;
+    public uint e32_winresoff;
+    public uint e32_winreslen;
     public ushort Dev386_Device_ID;
     public byte Dev386_DDK_Version_1;
     public byte Dev386_DDK_Version_2;

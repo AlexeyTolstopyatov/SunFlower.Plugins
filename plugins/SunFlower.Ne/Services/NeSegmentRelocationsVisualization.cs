@@ -65,6 +65,6 @@ follow the segment data in the file."
 
     public override Region ToRegion()
     {
-        return new Region($"### Segment #{_struct.SegmentNumber}", ToString(), ToDataTable());
+        return new Region($"Segment #{_struct.SegmentNumber}", ToString(), ToDataTable());
     }
 }

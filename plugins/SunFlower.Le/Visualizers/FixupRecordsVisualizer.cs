@@ -15,7 +15,7 @@ public class FixupRecordsVisualizer(List<FixupRecord> @struct) : AbstractStructV
     public override Region ToRegion()
     {
         return new Region(
-            "### Fixup Records | Common Data",
+            "Fixup Records | Common Data",
             " The  Fixup  Record Table contains entries  for all fixups in \n " +
             "the linear EXE module.  The fixup records for a logical page \n " +
             "are  grouped together and kept  in  sorted order by  logical page number. \n " +

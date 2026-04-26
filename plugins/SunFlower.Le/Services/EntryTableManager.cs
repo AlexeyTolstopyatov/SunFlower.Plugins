@@ -1,4 +1,5 @@
-﻿using SunFlower.Le.Headers;
+﻿using System.Text;
+using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Services;
 
@@ -22,13 +23,13 @@ public class EntryTableManager(
             if (isOrdinal)
                 return (modules[(int)(modIndex - 1)], $"@{impOffset}");
 
-            if (modIndex > modules.Count)
+            if (modIndex - 1 > modules.Count) // warn: last index in the table??
                 return ("", "?");
             
             reader.BaseStream.Position = impOffset;
             
             impLen = reader.ReadByte();
-            var impStr = new string(reader.ReadChars(impLen));
+            var impStr = Encoding.ASCII.GetString(reader.ReadBytes(impLen));
             
             reader.BaseStream.Position = currentPosition;
             return (modules[(int)(modIndex - 1)], impStr);
@@ -50,14 +51,16 @@ public class EntryTableManager(
         var nonResidentOrdinals = nonResNames.Select(x => x.Ordinal).ToList();
         var residentOrdinals = resNames.Select(x => x.Ordinal).ToList();
         
-        string TryGetName(int ordinal)
+        string GetExportString(int ordinal)
         {
+            // Usually, resident/free exports are differs with ordinal.
+            // If export @300 exists in resident memory -> non-resident export @300 not exists  
             if (nonResidentOrdinals.Contains((ushort)ordinal)) 
                 return nonResNames.First(x => x.Ordinal == ordinal).String;
-            if (residentOrdinals.Contains((ushort)ordinal)) 
-                return resNames.First(x => x.Ordinal == ordinal).String;
             
-            return "";
+            return residentOrdinals.Contains((ushort)ordinal) 
+                ? resNames.First(x => x.Ordinal == ordinal).String 
+                : "";
         }
         
         while (true)
@@ -84,10 +87,6 @@ public class EntryTableManager(
                 Entry entry;
                 switch (type)
                 {
-                    case EntryBundleType.Unused:
-                        entry = new EntryUnused();
-                        
-                        break;
                     case EntryBundleType._16Bit:
                         // custom: try to get name by ordinal.
                         
@@ -95,7 +94,7 @@ public class EntryTableManager(
                         {
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16(),
-                            EntryName = TryGetName(globalCounter)
+                            EntryName = GetExportString(globalCounter)
                         };
                         break;
                     case EntryBundleType._286CallGate:
@@ -104,7 +103,7 @@ public class EntryTableManager(
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16(),
                             CallGateSelector = reader.ReadUInt16(),
-                            EntryName = TryGetName(globalCounter)
+                            EntryName = GetExportString(globalCounter)
                         };
                         break;
                     case EntryBundleType._32Bit:
@@ -112,7 +111,7 @@ public class EntryTableManager(
                         {
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt32(),
-                            EntryName = TryGetName(globalCounter)
+                            EntryName = GetExportString(globalCounter)
                         };
                         break;
                     case EntryBundleType.Forwarder:
@@ -134,8 +133,11 @@ public class EntryTableManager(
                     
                         entry = fwd;
                         break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(type) + $" = {(byte)type}");
+                     default: // case EntryBundleType.Unused or Wrong entry table bundle:
+                        entry = new EntryUnused();
+                        if (type != EntryBundleType.Unused)
+                            Console.Error.WriteLine($"Skipped: Type={{{type}}}; Object#={objNumber}; \n");
+                        break;
                 }
 
                 bundle.Entries.Add(entry);

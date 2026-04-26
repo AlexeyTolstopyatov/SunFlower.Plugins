@@ -1,9 +1,25 @@
-﻿using SunFlower.Le.Headers;
+﻿using System.Text;
+using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Services;
 
 public class ImportsByFixupsManager
 {
+    string TryRead(ref BinaryReader reader, int length)
+    {
+        try
+        {
+            return length != 0 
+                ? Encoding.ASCII.GetString(reader.ReadBytes(length)) 
+                : string.Empty;
+        } 
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+            return "?";
+        }
+    }
+
     public List<ImportRecord> GetImportsByFixups(
         BinaryReader reader, 
         List<FixupRecord> records, 
@@ -26,11 +42,10 @@ public class ImportsByFixupsManager
                 {
                     reader.BaseStream.Position = impProcOffset + name.ProcedureNameOffset;
                     var len = reader.ReadByte();
-                    var procName = new String(reader.ReadChars(len));
-                
+
                     imports.Add(new ImportRecord(
                         modules.ElementAt(name.ModuleOrdinal - 1),
-                        procName,
+                        TryRead(ref reader, len),
                         impProcOffset + name.ProcedureNameOffset
                     ));
                     break;
@@ -48,7 +63,7 @@ public class ImportsByFixupsManager
         var len = reader.ReadByte();
         while (len != 0)
         {
-            modules.Add(new string(reader.ReadChars(len)));
+            modules.Add(TryRead(ref reader, len));
             len = reader.ReadByte();
         }
 

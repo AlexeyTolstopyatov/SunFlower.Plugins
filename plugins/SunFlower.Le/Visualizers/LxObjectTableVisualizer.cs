@@ -49,7 +49,7 @@ public class LxObjectTableVisualizer(List<Object> @struct) : AbstractStructVisua
     public override Region ToRegion()
     {
         return new Region(
-            "## Objects Table",
+            "Objects Table",
             "Objects defines a sections of code and data,\r\n what require to be placed" +
             "in specific memory allocation while module is loading.",
             ToDataTable());

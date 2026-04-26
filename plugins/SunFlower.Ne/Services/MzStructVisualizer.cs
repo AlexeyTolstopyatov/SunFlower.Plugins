@@ -46,6 +46,6 @@ Pointer of relocation's table set at the 0x40";;
 
     public override Region ToRegion()
     {
-        return new Region("## DOS 2.0+ Executable Header", ToString(), ToDataTable());
+        return new Region("DOS 2.0+ Executable Header", ToString(), ToDataTable());
     }
 }

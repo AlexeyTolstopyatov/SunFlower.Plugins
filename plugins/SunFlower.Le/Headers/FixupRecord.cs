@@ -26,7 +26,7 @@ public struct FixupTargetInternal
 
     public override string ToString()
     {
-        return "Internal Target";
+        return "Internal";
     }
 }
 
@@ -57,6 +57,6 @@ public struct FixupTargetEntryTable
     public ushort EntryNumber;
     public override string ToString()
     {
-        return "EntryTable";
+        return "Entry Table";
     }
 }

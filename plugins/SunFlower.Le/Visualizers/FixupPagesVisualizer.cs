@@ -15,7 +15,7 @@ public class FixupPagesVisualizer(List<FixupPageRecord> @struct) : AbstractStruc
     public override Region ToRegion()
     {
         return new Region(
-            "## Fixup Pages", 
+            "Fixup Pages", 
             "The Fixup Page Table provides a simple mapping of a logical \n " +
             "page number to an offset into  the Fixup Record Table for that page.",
             ToDataTable());

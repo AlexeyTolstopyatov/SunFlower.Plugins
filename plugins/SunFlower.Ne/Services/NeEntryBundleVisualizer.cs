@@ -47,6 +47,6 @@ if bundle marked as unused, loader skips count of entries set in this bundle.";
 
     public override Region ToRegion()
     {
-        return new Region($"### EntryTable Bundle #{number}", ToString(), ToDataTable());
+        return new Region($"EntryTable Bundle #{number}", ToString(), ToDataTable());
     }
 }

@@ -4,7 +4,8 @@ using SunFlower.Ne.Services;
 
 namespace SunFlower.Ne;
 
-[FlowerSeedContract(4,5,0)]
+[Flower(SeedTarget.Data)]
+[FlowerSeedContract(5,0,0)]
 public class NewExecutableSeed : IFlowerSeed
 {
     public string Seed => "Sunflower Win16-OS/2 NE IA-32";
@@ -15,11 +16,12 @@ public class NewExecutableSeed : IFlowerSeed
         {
             NeDumpManager dumpManager = new(path);
             NeTableManager tableManager = new(dumpManager);
-            Status.IsEnabled = true;
 
+            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.MainRegions));
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, tableManager.Characteristics));
-            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.Regions));
+            Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.NestedDataRegions));
             
+            Status.IsEnabled = true;
             return 0;
         }
         catch (Exception e)
