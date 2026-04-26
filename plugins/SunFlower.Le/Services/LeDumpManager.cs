@@ -79,9 +79,11 @@ public class LeDumpManager : UnsafeManager
         
         reader.Close();
     }
-
+    
     private void CollectVirtualDriverMetadata(BinaryReader reader)
     {
+        // ReDim main structure by LE program header. I'm going to isolate this data
+        // and try to extract next Windows Driver embeddings
         VxdHeader = new VxdHeader
         {
             e32_major_ddk = LeHeader.Dev386_DDK_Version_1,
@@ -90,44 +92,68 @@ public class LeDumpManager : UnsafeManager
             e32_winresoff = LeHeader.e32_winresoff,
             e32_winreslen = LeHeader.e32_winreslen
         };
-        
+        // Read the first bytes of compiled resource (*.res) offset.
+        // It will be needed for me, because I don't know what entry point are represents
+        // public driver API. No manuals and articles in the Internet, where I've found it.
+        // That's why I've decided to follow this idea:
         reader.BaseStream.Position = LeHeader.e32_winresoff;
         VxdResources = Fill<VxdResources>(reader);
-        // Now we get the Ordinal of "procedure" (hehe, i meant description block metadata)
-        // And i'm going to accept challenge - find the address of DDB block by given ordinal
+        // Remember of it, because GetPhysicalOffset requires explicit
+        // object# for given entry point
+        var objectNumber = 0;
+        // EntryTable represents complex structure where bundles are not indexed.
+        // They will be indexed in the high level (LeTableManager)
+        Entry? EntryOrNull()
+        {
+            // Index of an entry point (1-based). By this index I'm going 
+            // to compute <Entry>. Also, I'm sure about that, given Resource->Ordinal field
+            // are not refers to the unused entry. (for else, we can't define public API for a driver)
+            var ordinal = 0;
+            // Iterate all entries here, I want to find Resource->Ordinal and ordinal match.
+            foreach (var bundle in EntryBundles)
+            {
+                objectNumber = bundle.ObjectNumber;
+                foreach (var entry in bundle.Entries)
+                {
+                    ++ordinal;
+                    if (ordinal == VxdResources.Ordinal)
+                    {
+                        return entry;
+                    }
+                }
+            }
+            return null;
+        }
+        // Now we get the Ordinal of "procedure" (hehe, I meant description block metadata)
+        // And I'm going to accept challenge - find the address of DDB block by given ordinal
         long ExtractEntryOffset(Entry entry)
         {
-            switch (entry.Type)
+            // Despite the fact that entry point might be in various typed bundle
+            // I'm expecting once thing. Those virtual/file address. It depends on object number.
+            // If object# = 0, address of entrypoint sets to global scope -> will be raw file pointer
+            // Otherwise: I need to proceed virtual address by memory pages locations.
+            // 
+            // Applying ObjectsOffsets here, I'm going to return raw file pointer from the inside  
+            var offset = (entry.Type) switch
             {
-                case EntryBundleType._16Bit:
-                    var e16 = (Entry16Bit)entry;
-                    return e16.Offset;
-                case  EntryBundleType._32Bit:
-                    var e32 = (Entry32Bit)entry;
-                    return e32.Offset;
-                case EntryBundleType._286CallGate:
-                    var gate = (Entry286CallGate)entry;
-                    return gate.Offset;
-            }
-
-            return -1;
+                EntryBundleType._16Bit => ((Entry16Bit)entry).Offset,
+                EntryBundleType._32Bit => ((Entry32Bit)entry).Offset,
+                EntryBundleType._286CallGate => ((Entry286CallGate)entry).Offset,
+                EntryBundleType.Forwarder => ((EntryForwarder)entry).OffsetOrOrdinal, // fucking unbelievable thing
+                _ => throw new Exception($"Given entry type is {entry.Type}")
+            };
+            
+            return objectNumber == 0 ? offset : GetPhysicalOffset(objectNumber, offset);
         }
-        // var ordinal = 1;
-        // foreach (var entry in EntryBundles.Where(bundle => bundle.Type != EntryBundleType.Unused).SelectMany(bundle => bundle.Entries))
-        // {
-        //     if (ordinal == VxdResources.Ordinal)
-        //     {
-        //         ddbEntry = entry;
-        //         return;
-        //     }
-        //     ++ordinal;
-        // }
-        var offset = ExtractEntryOffset(EntryBundles[0].Entries[0]);
-        var ddbOffset = GetPhysicalOffset(EntryBundles[0].ObjectNumber, offset);
-        if (ddbOffset is null or -1)
+        // Now I've done. Object number is updated. Entry extracted or null.
+        // Last action what we need -> apply it
+        var ddbEntry = EntryOrNull();
+        if (ddbEntry is null)
             return;
-
-        reader.BaseStream.Position = ddbOffset.Value;
+        
+        var offset = ExtractEntryOffset(ddbEntry);
+        
+        reader.BaseStream.Position = offset;
         VxdDescriptionBlock = Fill<VxdDescriptionBlock>(reader);
     }
     
@@ -142,7 +168,7 @@ public class LeDumpManager : UnsafeManager
         return pages.Select(page => new ObjectPageOffsetPair(page.LongPageIndex, firstPageOffset + (page.LongPageIndex - 1) * pageSize)).ToArray();
     }
     
-    public long? GetPhysicalOffset(int objectIndex, long rva)
+    public long GetPhysicalOffset(int objectIndex, long rva)
     {
         if (objectIndex < 1 || objectIndex > Objects.Count)
         {
