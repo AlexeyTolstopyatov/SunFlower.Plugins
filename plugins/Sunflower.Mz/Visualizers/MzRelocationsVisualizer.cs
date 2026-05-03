@@ -3,7 +3,7 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using Sunflower.Mz.Models;
 
-namespace Sunflower.Mz.Services;
+namespace Sunflower.Mz.Visualizers;
 
 public class MzRelocationsVisualizer(List<MzRelocation> @struct) : AbstractStructVisualizer<List<MzRelocation>>(@struct)
 {
@@ -31,6 +31,6 @@ _using little endian reinterpretation_";
 
     public override Region ToRegion()
     {
-        return new Region("## DOS Executable Relocations", ToString(), ToDataTable());
+        return new Region("Per-Segment Relocations", ToString(), ToDataTable());
     }
 }

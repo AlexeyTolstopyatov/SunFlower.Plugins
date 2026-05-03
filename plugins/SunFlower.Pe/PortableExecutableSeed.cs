@@ -8,7 +8,7 @@ namespace SunFlower.Pe;
 /// <summary>
 /// Template of IFlowerSeed implementation.
 /// </summary>
-[FlowerSeedContract(4, 5, 0)] // <-- important flags
+[FlowerSeedContract(5, 0, 0)] // <-- important flags
 public class PortableExecutableSeed : IFlowerSeed
 {
     public string Seed => "Sunflower Windows PE32/+ IA-32(e)";
@@ -18,7 +18,7 @@ public class PortableExecutableSeed : IFlowerSeed
     /// EntryPoint returns Status Table 
     /// </summary>
     /// <returns></returns>
-    public int Main(string path) // <-- path to needed image 
+    public int Main(string path)
     {
         try
         {

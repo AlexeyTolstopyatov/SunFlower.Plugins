@@ -4,26 +4,32 @@ using Sunflower.Mz.Services;
 
 namespace Sunflower.Mz;
 
-[FlowerSeedContract(4, 5, 0)]
+[FlowerSeedContract(5, 0, 0)]
+[Flower(SeedTarget.Data)]
 public class MarkZbikowskiFlowerSeed : IFlowerSeed
 {
-    public string Seed => "Sunflower PC/MS-DOS MZ i8086+";
+    public string Seed => "MZ Executable";
     public FlowerSeedStatus Status { get; } = new();
     public int Main(string path)
     {
+        if (string.Equals(Path.GetExtension(path), ".COM", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Path.GetExtension(path), ".CMD", StringComparison.OrdinalIgnoreCase))
+        {
+            Status.IsEnabled = false;
+            return 0;
+        }
         try
         {
             MzDumpManager manager = new(path);
             MzTableManager tableManager = new(manager);
             
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Regions, tableManager.Regions));
-
             Status.IsEnabled = true;
         }
         catch (Exception e)
         {
             Status.LastError = e;
-            throw;
+            Status.IsEnabled = false;
         }
         return 0;
     }

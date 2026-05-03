@@ -88,7 +88,7 @@ public struct Vb4Header
     [MarshalAs(UnmanagedType.U2)] public UInt16 FormsCount;
     [MarshalAs(UnmanagedType.U2)] public UInt16 ModulesClassesCount;
     [MarshalAs(UnmanagedType.U2)] public UInt16 ExternComponentsCount;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 InEachFile176d;
+    [MarshalAs(UnmanagedType.U2)] public UInt16 InEachFile176d; // Always 176d
     [MarshalAs(UnmanagedType.U4)] public UInt32 GuiTableOffset;
     [MarshalAs(UnmanagedType.U4)] public UInt32 UndefinedTableOffset;
     [MarshalAs(UnmanagedType.U4)] public UInt32 ExternComponentTableOffset; // not 100% sure

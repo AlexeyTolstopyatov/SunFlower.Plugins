@@ -3,7 +3,7 @@
 namespace SunFlower.Mz.Services;
 
 ///
-/// CoffeeLake 2024-2025
+/// CoffeeLake 2024-*
 /// This code is JellyBins part for dumping
 /// images.
 ///

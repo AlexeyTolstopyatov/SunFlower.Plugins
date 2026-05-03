@@ -4,7 +4,7 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class Vb5ProjectInfoVisualizer(Vb5ProjectInfo @struct) : AbstractStructVisualizer<Vb5ProjectInfo>(@struct)
 {
@@ -53,8 +53,6 @@ always filled by the Visual Basic 5.0+ Compiler.
  - `lpExternalTable` points to the `ExternalApiDescriptor`s array
  - `lpCodeStart` may has `0xE9E9E9E9`
  - `lpCodeEnd` may has `0x9E9E9E9E`
- - If Native code pointer set to 0 - this is a P-Code compiled module
- - `ExternalApiDescriptor` is a call of procedure from another module. (e.g. `User32.DLL`)
 
 > [!TIP]
 > This application compiled using {type}
@@ -67,6 +65,6 @@ Strings:
 
     public override Region ToRegion()
     {
-        return new Region("### VB 5.0+ Project Information", ToString(), ToDataTable());
+        return new Region("VB 5.0+ Project Information", ToString(), ToDataTable());
     }
 }

@@ -1,14 +1,14 @@
 ﻿using System.Data;
 using System.Text;
+using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
-using SunFlower.Abstractions;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class Vb5StructVisualizer(Vb5Header @struct) : AbstractStructVisualizer<Vb5Header>(@struct)
 {
-    private readonly string _heading = "### Visual Basic 5.0/6.0 Runtime section";
+    private readonly string _heading = "Visual Basic 5.0/6.0 Runtime section";
     public override DataTable ToDataTable()
     {
         return FlowerReflection.GetNameValueTable(_struct);

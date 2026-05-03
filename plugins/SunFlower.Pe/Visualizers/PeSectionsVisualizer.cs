@@ -3,11 +3,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeSectionsVisualizer(PeSection[] @struct) : AbstractStructVisualizer<PeSection[]>(@struct)
 {
-    private readonly string _content = "## Sections";
+    private readonly string _content = "Sections";
     public override DataTable ToDataTable()
     {
         DataTable sections = new()
@@ -31,7 +31,7 @@ public class PeSectionsVisualizer(PeSection[] @struct) : AbstractStructVisualize
         foreach (var dump in _struct)
         {
             sections.Rows.Add(
-                new String(dump.Name.Where(x => x != '\0').ToArray()),
+                new string(dump.Name.Where(x => x != '\0').ToArray()),
                 "0x" + dump.VirtualAddress.ToString("X"),
                 "0x" + dump.VirtualSize.ToString("X"),
                 "0x" + dump.SizeOfRawData.ToString("X"),

@@ -4,11 +4,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeStructVisualizer(PeFileHeader s) : AbstractStructVisualizer<PeFileHeader>(s)
 {
-    public readonly string _content = "## Portable Executable Header";
+    public readonly string _content = "Portable Executable Header";
     private readonly PeFileHeader _s = s;
 
     public override DataTable ToDataTable()

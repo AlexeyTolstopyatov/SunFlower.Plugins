@@ -3,19 +3,14 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeClrDirectoriesVisualizer(List<PeDirectory> @struct)
     : AbstractStructVisualizer<List<PeDirectory>>(@struct)
 {
     public override DataTable ToDataTable()
     {
-        if (_struct is null)
-        {
-            return new DataTable();
-        }
-
-        return FlowerReflection.ListToDataTable(_struct);
+        return _struct is null ? new DataTable() : FlowerReflection.ListToDataTable(_struct);
     }
 
     public override string ToString()
@@ -28,12 +23,11 @@ Directories iterated in table:
  - `VTableDirectory`
  - `Exports`
  - `ManagedNativeHeader`
-
 ";
     }
 
     public override Region ToRegion()
     {
-        return new Region("### CLR Runtime Directories", ToString(), ToDataTable());
+        return new Region("CLR Runtime Directories", ToString(), ToDataTable());
     }
 }

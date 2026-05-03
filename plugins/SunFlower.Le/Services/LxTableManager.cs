@@ -87,46 +87,13 @@ public class LxTableManager
             : 0;
         return (codeOffset, bssOffset);
     }
-
-    private long GetOffset(int objectIndex, uint rva)
-    {
-        if (objectIndex < 1 || objectIndex > _manager.Objects.Count)
-            return 0;
-
-        var obj = _manager.Objects[objectIndex - 1];
-        var pageSize = _manager.LxHeader.e32_pagesize;
-        var pageShift = _manager.LxHeader.e32_pageshift;
-
-        // Which object page 
-        var pageIndexInObject = rva / pageSize;
-        if (pageIndexInObject >= obj.PageMapEntries)
-            return 0; // out of bounds
-
-        // Global# into Object Page Table
-        var globalPageIdx = obj.PageMapIndex + pageIndexInObject;
-        if (globalPageIdx < 1 || globalPageIdx > _manager.Pages.Count)
-            return 0;
-
-        var page = _manager.Pages[(int)globalPageIdx - 1];
-
-        // Physical... still exists?
-        var flags = page.Flags;
-        if ((flags & 0x03) == 0x02 || (flags & 0x03) == 0x03)
-            return 0; // invalid/iterated page
-
-        var pageFileOffset = _manager.LxHeader.e32_mpages + // DataPagesOffset
-                             ((long)page.PageOffset << (int)pageShift);
-
-        // Offset inside the page
-        var offsetInPage = rva % pageSize;
-        return pageFileOffset + offsetInPage;
-    }
+    
     private (long code, long stack, long data) ForProtectedMode()
     {
         return (
-            GetOffset((int)_manager.LxHeader.e32_startobj, _manager.LxHeader.e32_eip), 
-            GetOffset((int)_manager.LxHeader.e32_stackobj, _manager.LxHeader.e32_esp),
-            GetOffset((int)_manager.LxHeader.e32_autodata, 0)
+            _manager.GetPhysicalOffset((int)_manager.LxHeader.e32_startobj, _manager.LxHeader.e32_eip), 
+            _manager.GetPhysicalOffset((int)_manager.LxHeader.e32_stackobj, _manager.LxHeader.e32_esp),
+            _manager.GetPhysicalOffset((int)_manager.LxHeader.e32_autodata, 0)
         );
     }
     private void AddMainCharacteristics()

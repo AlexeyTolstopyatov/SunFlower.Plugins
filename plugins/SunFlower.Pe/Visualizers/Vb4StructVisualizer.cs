@@ -3,11 +3,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class Vb4StructVisualizer(Vb4Header @struct) : AbstractStructVisualizer<Vb4Header>(@struct)
 {
-    private readonly string _content = "### Visual Basic 4.0 Unofficial Section";
+    private readonly string _content = "Visual Basic 4.0 Unofficial Section";
     private readonly Vb4Header _struct1 = @struct;
 
     public override DataTable ToDataTable()
@@ -17,9 +17,7 @@ public class Vb4StructVisualizer(Vb4Header @struct) : AbstractStructVisualizer<V
 
     public override string ToString()
     {
-        return "This is a section that bases on the legacy by `VBGamer 45` and `DoDi` placed here." + 
-               "I'm trying to demangle and define other undocumented leaked structure fields. for PE32 linked programs" +
-               "So, If you see this section - you must know this is a very rare artifact.";
+        return "This is a section that bases on the legacy by `VBGamer 45` and `DoDi` decompilers info.";
     }
 
     public override Region ToRegion()

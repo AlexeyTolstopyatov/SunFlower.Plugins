@@ -37,7 +37,7 @@ public class LeTableManager
         public uint Heap;
     }
     
-    private LeDumpManager _manager;
+    private readonly LeDumpManager _manager;
     public List<Region> MainRegions { get; set; } = [];
     public List<Region> ObjectRegions { get; } = [];
     public List<Region> EntryTableRegions { get; } = [];
@@ -48,7 +48,7 @@ public class LeTableManager
     public LeTableManager(LeDumpManager manager)
     {
         _manager = manager;
-        // list of init queue
+        
         AddMainCharacteristics();
         AddModuleCharacteristics();
         
@@ -95,45 +95,12 @@ public class LeTableManager
             : 0;
         return (codeOffset, bssOffset);
     }
-
-    private long GetOffset(int objectIndex, uint rva)
-    {
-        if (objectIndex < 1 || objectIndex > _manager.Objects.Count)
-            return 0;
-
-        var obj = _manager.Objects[objectIndex - 1];
-        var pageSize = _manager.LeHeader.e32_pagesize;
-        var pageShift = _manager.LeHeader.e32_lastpagesize; // instead of page shift
-
-        // Which object page 
-        var pageIndexInObject = rva / pageSize;
-        if (pageIndexInObject >= obj.PageMapEntries)
-            return 0; // out of bounds
-
-        // Global# into Object Page Table
-        var globalPageIdx = obj.PageMapIndex + pageIndexInObject;
-        if (globalPageIdx < 1 || globalPageIdx > _manager.Pages.Count)
-            return 0;
-
-        var page = _manager.Pages[(int)globalPageIdx - 1];
-
-        // Physical... still exists?
-        var flags = page.Page.Flags;
-        if ((flags & 0x03) == 0x02 || (flags & 0x03) == 0x03)
-            return 0; // invalid/iterated page
-
-        var pageFileOffset = _manager.LeHeader.e32_mpages + pageShift; // shift?
-
-        // Offset inside the page
-        var offsetInPage = rva % pageSize;
-        return pageFileOffset + offsetInPage;
-    }
     private (long code, long stack, long data) ForProtectedMode()
     {
         return (
-            GetOffset((int)_manager.LeHeader.e32_startobj, _manager.LeHeader.e32_eip), 
-            GetOffset((int)_manager.LeHeader.e32_stackobj, _manager.LeHeader.e32_esp),
-            GetOffset((int)_manager.LeHeader.e32_autodata, 0)
+            _manager.GetPhysicalOffset((int)_manager.LeHeader.e32_startobj, _manager.LeHeader.e32_eip), 
+            _manager.GetPhysicalOffset((int)_manager.LeHeader.e32_stackobj, _manager.LeHeader.e32_esp), 
+            _manager.GetPhysicalOffset((int)_manager.LeHeader.e32_autodata, 0) 
         );
     }
     private void AddMainCharacteristics()
@@ -174,7 +141,6 @@ public class LeTableManager
             {
                 Runs = "Protected mode", 
                 Heap = _manager.LeHeader.e32_heapsize, 
-                // Stack = _manager.LeHeader.e32_stacksize, 
                 CodeOffset = pCodeOffset, 
                 StackOffset = pBssOffset, 
                 DataOffset = dataOffset

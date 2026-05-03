@@ -1,5 +1,6 @@
 ﻿using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
+using SunFlower.Pe.Visualizers;
 
 namespace SunFlower.Pe.Services;
 

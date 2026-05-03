@@ -32,7 +32,7 @@ public class PeVbRuntime4Manager : DirectoryManager
             var offset = Offset(_info.EntryPoint);
             _reader.BaseStream.Position = offset;
 
-            var pushOpcode = _reader.ReadByte();    // push opcode
+            var pushOpcode = _reader.ReadByte();   // push opcode
             var pushAddress = _reader.ReadUInt32(); // always 32-bit register.
             
             if (pushOpcode != 0x68) // <-- PUSH passed. CALL passed.

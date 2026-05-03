@@ -5,13 +5,12 @@ using FileStream = System.IO.FileStream;
 namespace SunFlower.Pe.Services;
 
 ///
-/// CoffeeLake 2024-2025
+/// CoffeeLake 2024-2026
 /// This code is JellyBins part for dumping
 /// Windows PE32/+ images.
 ///
 /// Licensed under MIT
 ///
-
 public class PeDumpManager(string path) : UnsafeManager
 { 
     public MzHeader Dos2Header { get; private set; }
@@ -25,9 +24,6 @@ public class PeDumpManager(string path) : UnsafeManager
     public Vb4Header Vb4Header { get; private set; }
     public bool Is64Bit { get; set; }
     public long VbOffset { get; private set; }
-    /// <summary>
-    /// Starts manager in another thread
-    /// </summary>
     public void Initialize()
     {
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
@@ -59,10 +55,10 @@ public class PeDumpManager(string path) : UnsafeManager
         Vb5Header = vb5Runtime.Vb5Header;
         Vb4Header = vb4Runtime.Vb4Header;
 
-        if (vb5Runtime.Vb5Header.VbMagic != null!)
+        if (vb5Runtime.Vb5Header.VbMagic == "VB5!".ToCharArray())
             VbOffset = vb5Runtime.VbOffset;
 
-        if (vb4Runtime.Vb4Header.Signature != null!)
+        if (vb4Runtime.Vb4Header.Signature == "\x81\x35\x54\xB6".ToCharArray()) // 129 53 84 182
             VbOffset = vb4Runtime.VbOffset;
         
         reader.Close();
@@ -77,10 +73,10 @@ public class PeDumpManager(string path) : UnsafeManager
         }
     
         reader.BaseStream.Position = 0;
-        var dos2Hdr = Fill<MzHeader>(reader);
-        Dos2Header = dos2Hdr;
+        var dos2Header = Fill<MzHeader>(reader);
+        Dos2Header = dos2Header;
 
-        reader.BaseStream.Position = dos2Hdr.e_lfanew;
+        reader.BaseStream.Position = dos2Header.e_lfanew;
 
         var peSignature = reader.ReadUInt32();
         if (peSignature != 0x00004550)
@@ -88,10 +84,10 @@ public class PeDumpManager(string path) : UnsafeManager
             throw new InvalidOperationException("Doesn't have 'PE' signature");
         }
 
-        var fileHdr = Fill<PeFileHeader>(reader);
-        FileHeader = fileHdr;
+        var fileHeader = Fill<PeFileHeader>(reader);
+        FileHeader = fileHeader;
 
-        Is64Bit = (fileHdr.Characteristics & 0x0100) == 0; // Architecture not 32-bit WORD based.
+        Is64Bit = (fileHeader.Characteristics & 0x0100) == 0; // Architecture not 32-bit WORD based.
 
         if (Is64Bit)
         {

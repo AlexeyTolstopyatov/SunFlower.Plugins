@@ -3,7 +3,7 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class Vb5ComInfoVisualizer(VbComRegistrationInfo @struct) : AbstractStructVisualizer<VbComRegistrationInfo>(@struct)
 {
@@ -42,6 +42,6 @@ details of current _?ActiveX?_ object.";
 
     public override Region ToRegion()
     {
-        return new Region("### COM Registration Information", ToString(), ToDataTable());
+        return new Region("COM Registration Information", ToString(), ToDataTable());
     }
 }

@@ -15,4 +15,22 @@
       </Reference>
     </ItemGroup>
 
+    <ItemGroup>
+      <None Remove="Assets\header.asm" />
+      <Content Include="Assets\header.asm">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+      <None Update="Assets\segment_header.asm">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Remove="Data.ps1" />
+      <Content Include="Data.ps1">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
+    </ItemGroup>
+
 </Project>

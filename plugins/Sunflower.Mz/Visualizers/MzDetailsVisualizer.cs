@@ -2,7 +2,7 @@
 using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 
-namespace Sunflower.Mz.Services;
+namespace Sunflower.Mz.Visualizers;
 
 public class MzDetailsVisualizer(MzHeader @struct) : AbstractStructVisualizer<MzHeader>(@struct)
 {
@@ -54,6 +54,6 @@ public class MzDetailsVisualizer(MzHeader @struct) : AbstractStructVisualizer<Mz
 
     public override Region ToRegion()
     {
-        return new Region("### Details", ToString(), ToDataTable());
+        return new Region("Details", ToString(), ToDataTable());
     }
 }

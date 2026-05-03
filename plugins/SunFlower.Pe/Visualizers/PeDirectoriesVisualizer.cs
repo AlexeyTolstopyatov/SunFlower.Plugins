@@ -4,11 +4,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisualizer<PeDirectory[]>(@struct)
 {
-    private readonly string _content = "## Directories";
+    private readonly string _content = "Directories";
     private static readonly string[] Names =
     {
         "`EXPORT`", 
@@ -31,10 +31,10 @@ public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisu
     private static readonly string[] OtherNames =
     {
         "", // exports
-        "`STATIC_IMPORTS`",
+        "`STATIC_IMPORT`",
         "", // rsrc
         "`SEH`",
-        "`CRT` (or Certificates Table)", // security
+        "`CRT`", // security
         "", // base relocations
         "", // debug
         "`COPYRIGHT`",

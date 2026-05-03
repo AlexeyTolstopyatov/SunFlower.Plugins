@@ -4,11 +4,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Headers;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class MzStructVisualizer(MzHeader @struct) : AbstractStructVisualizer<MzHeader>(@struct)
 {
-    private readonly string _content = "### DOS 2.0+ Executable Header";
+    private readonly string _content = "DOS 2.0+ Executable Header";
     public override DataTable ToDataTable()
     {
         var mz = _struct;

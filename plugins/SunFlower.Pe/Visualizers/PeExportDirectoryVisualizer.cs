@@ -3,11 +3,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Models;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeExportDirectoryVisualizer(PeExportTableModel @struct) : AbstractStructVisualizer<PeExportTableModel>(@struct)
 {
-    private readonly string _content = "### Exports Header";
+    private readonly string _content = "Exports Header";
     private readonly PeExportTableModel _struct1 = @struct;
 
     public override string ToString()

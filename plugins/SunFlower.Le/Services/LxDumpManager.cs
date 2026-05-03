@@ -56,4 +56,19 @@ public class LxDumpManager : UnsafeManager
         
         reader.Close();
     }
+
+    public long GetPhysicalOffset(int objectNumber, long rva)
+    {
+        // file_offset = page_data_off + offset_in_page;
+        // 0: Legal physical page (preload/demand). File offset = data_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
+        // 1: Iterated data page. File offset = object_iter_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
+        if (Pages.Count == 0 || Objects.Count == 0) 
+            return 0;
+        if (objectNumber == 0)
+            return 0;
+        
+        var pageNumber = Objects[objectNumber - 1].PageMapIndex;
+        var pageOffset = Pages[(int)pageNumber - 1].PageOffset;
+        return LxHeader.e32_datapage + (pageOffset << (int)LxHeader.e32_pageshift) + rva;
+    }
 }

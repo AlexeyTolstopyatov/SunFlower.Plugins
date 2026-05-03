@@ -46,7 +46,6 @@ public class PeVbRuntime56Manager : DirectoryManager
 
             if (new string(header.VbMagic) != "VB5!")
             {
-                // strong equalization. If ASCII sequence not equal -> force uninit
                 header = new Vb5Header();
             }
         }

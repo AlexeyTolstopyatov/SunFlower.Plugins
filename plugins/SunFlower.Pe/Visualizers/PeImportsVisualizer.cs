@@ -3,11 +3,11 @@ using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Pe.Models;
 
-namespace SunFlower.Pe.Services;
+namespace SunFlower.Pe.Visualizers;
 
 public class PeImportsVisualizer(PeImportTableModel @struct) : AbstractStructVisualizer<PeImportTableModel>(@struct)
 {
-    private readonly string _content = "### Imports";
+    private readonly string _content = "Imports";
     
     public override DataTable ToDataTable()
     {

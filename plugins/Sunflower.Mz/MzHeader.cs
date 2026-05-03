@@ -3,26 +3,29 @@
 namespace Sunflower.Mz;
 
 [Serializable]
-[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct MzHeader
 {
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_sign;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_cblp;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_cp;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_relc;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_pars;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_minep;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_maxep;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 ss;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 sp;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_check;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 ip;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 cs;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_lfarlc;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_ovno;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public UInt16[] e_res0x1c;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_oemid;
-    [MarshalAs(UnmanagedType.U2)] public UInt16 e_oeminfo;
-    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)] public UInt16[] e_res_0x28;
-    [MarshalAs(UnmanagedType.U4)] public UInt32 e_lfanew;
+    public UInt16 e_sign;
+    public UInt16 e_cblp;
+    public UInt16 e_cp;
+    public UInt16 e_relc;
+    public UInt16 e_cparhdr;
+    public UInt16 e_minep;
+    public UInt16 e_maxep;
+    public UInt16 ss;
+    public UInt16 sp;
+    public UInt16 e_crc;
+    public UInt16 ip;
+    public UInt16 cs;
+    public UInt16 e_lfarlc;
+    public UInt16 e_ovno;
+    
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] 
+    public UInt16[] e_res0x1c;
+    public UInt16 e_oemid;
+    public UInt16 e_oeminfo;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 10)] 
+    public UInt16[] e_res_0x28;
+    public UInt32 e_lfanew;
 }
