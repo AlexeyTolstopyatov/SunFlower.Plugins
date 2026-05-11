@@ -13,6 +13,9 @@
       <Reference Include="SunFlower.Abstractions">
         <HintPath>..\..\..\SunFlower\src\SunFlower\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
       </Reference>
+      <Reference Include="Sunflower.Dasm">
+        <HintPath>..\..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
+      </Reference>
     </ItemGroup>
 
     <ItemGroup>
@@ -30,7 +33,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
+      <ProjectReference Include="..\..\..\SunFlower\src\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
     </ItemGroup>
 
 </Project>

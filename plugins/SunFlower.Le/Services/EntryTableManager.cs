@@ -23,8 +23,10 @@ public class EntryTableManager(
             if (isOrdinal)
                 return (modules[(int)(modIndex - 1)], $"@{impOffset}");
 
-            if (modIndex - 1 > modules.Count) // warn: last index in the table??
-                return ("", "?");
+            if (modIndex > modules.Count) // warn: last index in the table??
+                return ("<out of bounds>", $"(got={modIndex} max={modules.Count})");
+            if (impOffset > reader.BaseStream.Length)
+                return ("<beyond the EOF>", $"0x{impOffset:X}");
             
             reader.BaseStream.Position = impOffset;
             
@@ -38,8 +40,8 @@ public class EntryTableManager(
         {
             Console.WriteLine($"(ordinal={isOrdinal}; mod[{modIndex}]={impOffset:X}) | 0x{reader.BaseStream.Length:X} | {e}");
             Console.WriteLine($"procedure_len: {impLen}");
+            return ($"#{modIndex}", $"0x{impOffset:X}");
         }
-        return ("", "!");
     }
     
     private List<EntryBundle> ReadEntryTable(

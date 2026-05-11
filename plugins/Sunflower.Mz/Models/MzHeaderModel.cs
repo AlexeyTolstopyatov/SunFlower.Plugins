@@ -22,7 +22,7 @@ public class MzHeaderModel : UnsafeManager
     public MzHeaderModel(BinaryReader reader)
     {
         var header = Fill<MzHeader>(reader);
-        if (header.e_sign != 0x5a4d && header.e_sign != 0x4d5a)
+        if (header.e_sign is not (0x5a4d or 0x4d5a))
         {
             throw new NotSupportedException($"File doesn't have DOS signature! (Got: 0x{header.e_sign:X})");
         }

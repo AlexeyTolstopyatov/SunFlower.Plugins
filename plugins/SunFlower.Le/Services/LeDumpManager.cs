@@ -18,7 +18,7 @@ public class LeDumpManager : UnsafeManager
     public List<FixupRecord> FixupRecords { get; }
     public List<FixupPageRecord> FixupPageOffsets { get; }
     public List<ImportRecord> ImportRecords { get; }
-    public ObjectPageOffsetPair[] ObjectsOffsets;
+    public readonly ObjectPageOffsetPair[] ObjectsOffsets;
     public VxdHeader VxdHeader { get; set; }
     public VxdDescriptionBlock VxdDescriptionBlock { get; set; }
     public VxdResources VxdResources { get; set; }

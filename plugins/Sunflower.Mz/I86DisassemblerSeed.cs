@@ -12,53 +12,77 @@ public class I86DisassemblerSeed : IFlowerSeed
 {
     private readonly List<string> _results = [];
     /// <summary>
-    /// Inserts <c>Assets/header.asm</c> and rewrites some fields into the strings array
-    /// </summary>
-    private void InsertHeader(ref string path)
-    {
-        var headerLines =
-            File.ReadAllLines(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "header.asm"));
-        
-        _results.AddRange(headerLines);
-    }
-    /// <summary>
     /// Applies to the .COM/.CMD (CP/M 1x) programs. Usually used memory model was tiny
     /// That's why all image could be disassembled
     /// </summary>
     private void DecodeCom(ref string path)
     {
-        using var file = File.OpenRead(path);
-        using var reader = new BinaryReader(file);
-
-        var decoder = I8086Decoder.get();
-        var rl0 = reader.ReadBytes(3);
-        var jumper = I8086Decoder.touchOperation(decoder, rl0);
-        if (jumper == null)
-            throw new Exception("Jumper is null. Can't continue disassembling");
-        // if defined JMPN -> define file offset -> move to the code segment
-        var offset = Convert.ToUInt16(jumper.Value.Item1.Split(' ')[1], 16);
-        file.Position = offset;
-        _results.Add($"entry: # <-- Defined entry point by the 0x{offset:X4} file offset");
-        var image = reader.ReadBytes((int)(file.Length - offset));
-        _results.AddRange(I8086Decoder.decode(image));
+        var file = File.ReadAllBytes(path);
+        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
+        _results.AddRange([
+            $"# SunFlower.MZ.dll for .COM files (at {DateTime.UtcNow})",
+            $"# [{path}]",
+            "# Was disassembled for I8086 including MS-DOS interrupt vectors",
+            "# Connected external resources:",
+            "#     - Architecture: opcodes8086.json",
+            "#     - Interrupts: dos.json",
+            "",
+            "entry:"
+        ]);
+        // MS-DOS command always starts from zero.
+        // If you expect to see something about PSP -> think different
+        // File image contains raw bytes without any metadata like relocatable programs.
+        // Just from the OS memory side -> When, MS-DOS tries to load DOS command -> organizes special padding (255 bytes)
+        //
+        // But from the side of file -> there's nothing the same.
+        // Command file may contain x86 conditional jump to the entry point
+        // And I'm expecting for this now. I specially tell you that zero file offset contains
+        // near jump to the entry point. Or special commands block and further jump.
+        _results.Add(I8086Decoder.decodeRecursive(interruptsPath, file, [0]));
     }
-    private void DecodeSegment(ref string path, long start, long end)
+    private void DecodeSegment(ref string path, ref MzDumpManager manager, int ip, long sp)
     {
         // Open target file and try to disassemble selected code block
-        using var file = File.OpenRead(path);
-        using var reader = new BinaryReader(file);
+        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
+        var file = File.ReadAllBytes(path);
+        // Make beautiful header to the resulting file
+        _results.AddRange([
+            $"# SunFlower.MZ.dll for relocatable programs (at {DateTime.UtcNow})",
+            $"# [{path}]", 
+            "# Was disassembled for I8086 including MS-DOS interrupt vectors",
+            "# Connected external resources:",
+            "#     - Architecture: opcodes8086.json",
+            "#     - Interrupts: dos.json",
+            "# Defined MS-DOS program values from the program header are:",
+            $"#    .CODE  offset: 0x{manager.CodeOffset:X}  (entry=0x{ip:X})",
+            $"#    .STACK offset: 0x{manager.StackOffset:X} (stack=0x{sp:X})",
+            "",
+            "entry:"
+        ]);
+        // Process whole image bytes
+        _results.Add(I8086Decoder.decodeRecursive(interruptsPath, file, [ip]));
+    }
+
+    private void DecodeDosStub(ref string path, int start, long end)
+    {
+        _results.AddRange([
+            $"# SunFlower.MZ.dll for protected-mode executable (at {DateTime.UtcNow})",
+            $"# [{path}]", 
+            "# The DOS stub program ", 
+            "# Disassembled for I8086 including MS-DOS interrupt vectors",
+            "# Connected external resources:",
+            "#     - Architecture: opcodes8086.json",
+            "#     - Interrupts: dos.json",
+            "",
+            "entry:"
+        ]);
+        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
+        using var fileStream = File.OpenRead(path);
+        var dosStubBytes = new byte[Math.Abs(end - start)];
+        fileStream.Position = start;
+        fileStream.Read(dosStubBytes, 0, dosStubBytes.Length);
         
-        file.Position = start;
-        var codeLength = (end - start);
-        // What if length is invalid?
-        if (codeLength > reader.BaseStream.Length ||  codeLength < 0)
-            codeLength = file.Length - start;
-        
-        var bytes = reader.ReadBytes((int)codeLength);
-        
-        _results.Add("SEGMENT .CODE START");
-        _results.AddRange(I8086Decoder.decode(bytes));
-        _results.Add("ENDS");
+        _results.Add(I8086Decoder.decodeRecursive(interruptsPath, dosStubBytes, [0]));
     }
     public int Main(string path)
     {
@@ -78,23 +102,29 @@ public class I86DisassemblerSeed : IFlowerSeed
         try
         {
             var manager = new MzDumpManager(path);
+            // Given DOS 2.0 stub and protected-mode executable.
+            // Trim the DOS stub (CS:IP doesn't need for this) and disassemble given bytes block
+            if (manager.Header.e_lfanew != 0)
+            {
+                DecodeDosStub(ref path, manager.Header.e_lfarlc, manager.Header.e_lfanew);
+                // Out of condition block instructions will be invalid for given DOS stub.
+                // Usually it doesn't have any FAR pointers and executes as a compatible module
+                // by special algorithm
+                Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, _results));
+                Status.IsEnabled = true;
+                return 0;
+            }
             // Code segment undefined. Can't disassemble given file
             // Usually, protected-mode executables don't have CS:IP pointer into IMAGE_DOS_HEADER
             // for else, .word [e_lfanew] ignores (= set to zero) and executable runs under DOS
             if (manager.Header.cs == 0)
                 throw new Exception("Code segment is undeclared");
             // Insert special title at the top of file 
-            InsertHeader(ref path);
-            var entryOffset = manager.CodeOffset + manager.Header.ip;
+            var entryOffset = Convert.ToInt32(manager.CodeOffset + manager.Header.ip);
             var stackOffset = manager.StackOffset + manager.Header.sp;
-            _results.Add("# MZ header summary: ");
-            _results.Add($"#     .CODE  offset: 0x{manager.CodeOffset:X}");
-            _results.Add($"#     .STACK offset: 0x{manager.StackOffset:X}");
-            _results.Add($"entry: # Executable entry point defined at the {entryOffset:X}");
-            DecodeSegment(ref path, entryOffset, stackOffset);
-            
-            if (manager.Header.ss != 0)
-                _results.Add($"# stack: {stackOffset:X}");
+            // Given DOS program. CS:IP defined. Decode code segment starting from entry point
+            if (manager.Header.e_lfanew == 0)
+                DecodeSegment(ref path, ref manager, entryOffset, stackOffset);
             Status.Results.Add(new FlowerSeedResult(FlowerSeedEntryType.Strings, _results));
             Status.IsEnabled = true;
         }

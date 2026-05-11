@@ -1,5 +1,3 @@
-
-using Sunflower.Dasm;
 using SunFlower.Le.Services;
 
 namespace LinearExecutable;
@@ -24,5 +22,12 @@ public class LinearExecutable
         var startOffset = manager.GetPhysicalOffset((int)manager.LeHeader.e32_startobj, 0);
         Console.WriteLine(startOffset);
         Assert.IsTrue(startOffset % 16 == 0); // Paragraph alignment
+    }
+    [TestMethod]
+    public void ImportsTest()
+    {
+        LxDumpManager manager = new(@"D:\TEST\ECS\OS2CHAR.DLL");
+
+        manager.Offset(1);
     }
 }

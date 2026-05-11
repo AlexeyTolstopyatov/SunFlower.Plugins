@@ -22,7 +22,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\plugins\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
       <ProjectReference Include="..\plugins\SunFlower.Le\SunFlower.Le.csproj" />
       <ProjectReference Include="..\plugins\Sunflower.Mz\Sunflower.Mz.csproj" />
     </ItemGroup>
@@ -30,6 +29,9 @@
     <ItemGroup>
       <Reference Include="SunFlower.Abstractions">
         <HintPath>..\..\SunFlower\src\SunFlower\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
+      </Reference>
+      <Reference Include="Sunflower.Dasm">
+        <HintPath>..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
       </Reference>
     </ItemGroup>
 
