@@ -1,18 +1,26 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-    <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <Version>4.5.0</Version>
-        <AssemblyVersion>4.5.0.0</AssemblyVersion>
-        <FileVersion>4.5.0.0</FileVersion>
-    </PropertyGroup>
-
-    <ItemGroup>
-      <Reference Include="SunFlower.Abstractions">
-        <HintPath>..\..\..\SunFlower\src\SunFlower\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
-      </Reference>
-    </ItemGroup>
-
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>4.5.0</Version>
+    <AssemblyVersion>4.5.0.0</AssemblyVersion>
+    <FileVersion>4.5.0.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="SunFlower.Abstractions">
+      <HintPath>..\..\..\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
+    </Reference>
+    <Reference Include="Sunflower.Dasm">
+      <HintPath>..\..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SunFlower\src\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="opcodes386.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

@@ -5,7 +5,7 @@ using Object = SunFlower.Le.Headers.Lx.Object;
 
 namespace SunFlower.Le.Visualizers;
 
-public class LxObjectTableVisualizer(List<Object> @struct) : AbstractStructVisualizer<List<Object>>(@struct)
+public class LxObjectTableVisualizer(IEnumerable<Object> @struct) : AbstractStructVisualizer<IEnumerable<Object>>(@struct)
 {
     public override DataTable ToDataTable()
     {

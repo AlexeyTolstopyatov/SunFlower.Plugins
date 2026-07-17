@@ -67,7 +67,7 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
         for (var i = 0; i < exportDir.NumberOfNames; i++)
         {
             var functionName = ReadExportString(reader, namePointers[i]);
-            var ordinal = (ordinals[i] + exportDir.Base);
+            var ordinal = ordinals[i] + exportDir.Base;
             var address = _info.Is64Bit 
                 ? ReadArray<UInt64>(reader, functionAddresses[ordinals[i]], 1)[0] 
                 : ReadArray<UInt32>(reader, functionAddresses[ordinals[i]], 1)[0];

@@ -30,9 +30,11 @@ public class MzHeaderModel : UnsafeManager
         // MS-DOS uses PSP table to hold on process metadata, and it initializes
         // when program is loading into DOS "Program Memory"
         Header = header;
-        CodeOffset = Header.cs != 0
-            ? Header.e_cparhdr * 0x10 + Header.cs * 0x10 // e_cs * 16 + e_ip.
-            : 0;
+        if ((short)header.cs < 0)
+            header.cs = 0;
+        
+        CodeOffset = (Header.e_cparhdr + header.cs) << 4; // e_cs * 16 + e_ip. or ((e_cparhdr + cs) << 4)
+        
         StackOffset = Header.ss != 0
             ? Header.e_cparhdr * 0x10 + Header.ss * 0x10
             : Header.cs;

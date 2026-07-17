@@ -29,7 +29,7 @@ public class Vb5ProjectTablesManager : DirectoryManager
     private long Shift(long offset)
     {
         // I've seen it in nightmare and this idea works for *LONG pointers...
-        return ((offset - _imageBase) < 0) switch 
+        return (offset - _imageBase < 0) switch 
         {
             true => _imageBase - offset,
             false => offset - _imageBase 

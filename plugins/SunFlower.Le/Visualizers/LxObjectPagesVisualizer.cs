@@ -5,7 +5,7 @@ using SunFlower.Le.Headers.Lx;
 
 namespace SunFlower.Le.Visualizers;
 
-public class LxObjectPagesVisualizer(List<ObjectPage> @struct) : AbstractStructVisualizer<List<ObjectPage>>(@struct)
+public class LxObjectPagesVisualizer(IEnumerable<ObjectPage> @struct) : AbstractStructVisualizer<IEnumerable<ObjectPage>>(@struct)
 {
     public override DataTable ToDataTable()
     {

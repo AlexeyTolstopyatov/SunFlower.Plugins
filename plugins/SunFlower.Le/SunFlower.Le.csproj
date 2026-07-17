@@ -11,7 +11,7 @@
 
     <ItemGroup>
       <Reference Include="SunFlower.Abstractions">
-        <HintPath>..\..\..\SunFlower\src\SunFlower\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
+        <HintPath>..\..\..\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
       </Reference>
     </ItemGroup>
 

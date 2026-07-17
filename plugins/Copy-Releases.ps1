@@ -10,6 +10,7 @@ Write-Host "--- Importing to releases ---" -ForegroundColor Blue
 
 # Define paths
 $solutionRoot = "D:\Locals\SunFlower"
+$pluginsRoot = "D:\Locals\SunFlower.Plugins"
 $mainAppPath = "$solutionRoot\src\SunFlower.Windows\bin\Release\net8.0-windows"
 $pluginsOutputPath = "$mainAppPath\Plugins"
 
@@ -31,7 +32,7 @@ else {
 }
 
 # Define all nested plugins
-$pluginProjects = Get-ChildItem -Path "$solutionRoot\plugins" -Directory -Recurse -Depth 1
+$pluginProjects = Get-ChildItem -Path "$pluginsRoot\plugins" -Directory -Recurse -Depth 1
 
 foreach ($project in $pluginProjects) {
     $projectName = $project.Name

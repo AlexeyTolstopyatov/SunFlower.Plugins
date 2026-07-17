@@ -10,7 +10,7 @@ public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisu
 {
     private readonly string _content = "Directories";
     private static readonly string[] Names =
-    {
+    [
         "`EXPORT`", 
         "`IMPORT`",
         "`RESOURCE`",
@@ -27,9 +27,9 @@ public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisu
         "`DELAY_IMPORT`",
         "`COM_DESCRIPTOR`",
         "`RESERVED!`"
-    };
+    ];
     private static readonly string[] OtherNames =
-    {
+    [
         "", // exports
         "`STATIC_IMPORT`",
         "", // rsrc
@@ -46,7 +46,7 @@ public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisu
         "",
         "`NET_METADATA`",
         ""
-    };
+    ];
 
     public override string ToString()
     {
@@ -64,7 +64,7 @@ public class PeDirectoriesVisualizer(PeDirectory[] @struct) : AbstractStructVisu
 
         for (var i = 0; i < _struct.Length; ++i)
         {
-            d.Rows.Add((i + 1), 
+            d.Rows.Add(i + 1, 
                 Names[i], 
                 OtherNames[i],
                 "0x" + _struct[i].VirtualAddress.ToString("X4"),

@@ -1,17 +1,17 @@
 ﻿# Copy-Plugins.ps1
-# CoffeeLake (C) 2025
+# CoffeeLake (C) 2025-*
 #
 # Updates plugins platform (SunFlower.Abstractions.dll)
 # Copies SunFlower plugins into sources nested catalogs
 # nested catalogs: 
-#   GUI-less application root
 #   GUI application root
 
 Write-Host "--- Importing to Sources ---" -ForegroundColor Blue
 
 # Define paths
 $solutionRoot = "D:\Locals\SunFlower"
-$mainAppPath = "$solutionRoot\src\SunFlower.Windows\bin\Debug\net8.0-windows"
+$pluginsRoot = "D:\Locals\SunFlower.Plugins"
+$mainAppPath = "$solutionRoot\src\SunFlower.Client\bin\Debug\net8.0"
 $pluginsOutputPath = "$mainAppPath\Plugins"
 
 if (Test-Path $pluginsOutputPath) {
@@ -32,7 +32,7 @@ else {
 }
 
 # Define all nested plugins
-$pluginProjects = Get-ChildItem -Path "$solutionRoot\plugins" -Directory -Recurse -Depth 1
+$pluginProjects = Get-ChildItem -Path "$pluginsRoot\plugins" -Directory -Recurse -Depth 1
 
 foreach ($project in $pluginProjects) {
     $projectName = $project.Name
@@ -43,10 +43,10 @@ foreach ($project in $pluginProjects) {
         Copy-Item -Path $dllPath -Destination $pluginsOutputPath -Force
         
         # <optional> Copying databases
-        $pdbPath = "$($project.FullName)\bin\Debug\net8.0\$projectName.pdb"
-        if (Test-Path $pdbPath) {
-            Copy-Item -Path $pdbPath -Destination $pluginsOutputPath -Force
-        }
+        # $pdbPath = "$($project.FullName)\bin\Debug\net8.0\$projectName.pdb"
+        # if (Test-Path $pdbPath) {
+        #     Copy-Item -Path $pdbPath -Destination $pluginsOutputPath -Force
+        # }
     }
     else {
         Write-Warning "Plugin not found: $dllPath"

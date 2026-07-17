@@ -5,10 +5,10 @@ using SunFlower.Pe.Services;
 
 namespace SunFlower.Pe;
 
-[FlowerSeedContract(4, 5, 0)]
+[FlowerSeedContract(5, 0, 0)]
 public class VisualBasicFlowerSeed : IFlowerSeed
 {
-    public string Seed => "Sunflower VisualBasic Runtime";
+    public string Seed => "VB 5.0 Dump";
     public FlowerSeedStatus Status { get; private set; } = new();
     
     public int Main(string path)

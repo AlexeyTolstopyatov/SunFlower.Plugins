@@ -5,6 +5,7 @@ namespace SunFlower.Ne.Services;
 
 public class NeDumpManager : UnsafeManager
 {
+    public string FilePath { get; set; } = "";
     public MzHeader MzHeader { get; set; }
     public NeHeader NeHeader { get; set; }
     /// <summary>
@@ -31,7 +32,7 @@ public class NeDumpManager : UnsafeManager
     /// Exporting procedures without implicit ordinal in ".def" file declared
     /// </summary>
     public List<Name> ResidentNames { get; set; } = [];
-    
+
     /// <summary>
     /// Segmented EXE header offset
     /// </summary>
@@ -50,12 +51,13 @@ public class NeDumpManager : UnsafeManager
 
     private void Initialize(string path)
     {
+        FilePath = path;
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
         BinaryReader reader = new(stream);
 
         MzHeader = Fill<MzHeader>(reader);
 
-        if (MzHeader.e_sign != 0x5a4d && MzHeader.e_sign != 0x4d5a) // cigam is very old sign but it also exists
+        if (MzHeader.e_sign != 0x5a4d && MzHeader.e_sign != 0x4d5a)
             throw new InvalidOperationException("Doesn't have DOS/2 signature");
 
         _offset = MzHeader.e_lfanew;
@@ -63,37 +65,32 @@ public class NeDumpManager : UnsafeManager
 
         NeHeader = Fill<NeHeader>(reader);
 
-        if (NeHeader.NE_ID != 0x454e && NeHeader.NE_ID != 0x4e45) // magic or cigam
+        if (NeHeader.NE_ID != 0x454e && NeHeader.NE_ID != 0x4e45)
             throw new InvalidOperationException("Doesn't have 'NE' signature");
 
-        var segments = new NeSegmentTableManager(reader, 
-            Offset(NeHeader.NE_SegmentsTable), 
+        var segments = new NeSegmentTableManager(reader,
+            Offset(NeHeader.NE_SegmentsTable),
             NeHeader.NE_SegmentsCount,
             NeHeader.NE_Alignment);
-        
+
         var exports = new NeNamesTablesManager(reader, new ExportOffsets(
             Offset(NeHeader.NE_ResidentNamesTable),
             NeHeader.NE_NonResidentNamesTable,
             NeHeader.NE_NonResidentNamesCount
         ));
-        
+
         var imports = new NeImportNamesManager(reader, new ImportOffsets(
-            // other tables aren't filled yet 
             Offset(NeHeader.NE_ImportModulesTable),
-            1,
             Offset(NeHeader.NE_ModReferencesTable),
             NeHeader.NE_ModReferencesCount
-            ), 
-            // segment relocations contains raw pointers to imports
-            segments.SegmentModels
-        );
-        
-        var entries = new NeEntryTableManager(reader, 
-            Offset(NeHeader.NE_EntryTable), 
+        ),
+        segments.SegmentModels);
+
+        var entries = new NeEntryTableManager(reader,
+            Offset(NeHeader.NE_EntryTable),
             NeHeader.NE_EntriesCount,
             exports.NonResidentNames,
-            exports.ResidentNames
-        );
+            exports.ResidentNames);
 
         Segments = segments.SegmentModels;
         EntryBundles = entries.EntryBundles;
@@ -101,8 +98,7 @@ public class NeDumpManager : UnsafeManager
         NonResidentNames = exports.NonResidentNames;
         ModuleReferences = imports.ModuleReferences;
         ImportModels = imports.ImportModels;
-        
+
         reader.Close();
     }
-    
 }

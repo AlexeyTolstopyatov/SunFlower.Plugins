@@ -61,28 +61,28 @@ public class LeTableManager
             Headers.Add(new VxdDescriptionBlockVisualizer(_manager.VxdDescriptionBlock).ToRegion());
         }
         
-        if (_manager.Pages.Count > 0)
+        if (_manager.Pages.Length > 0)
             ObjectRegions.Add(new LeObjectPagesVisualizer(_manager.Pages).ToRegion());
         
-        if (_manager.Objects.Count > 0)
+        if (_manager.Objects.Length > 0)
         {
             ObjectRegions.Add(new LeObjectTableVisualizer(_manager.Objects).ToRegion());
             ObjectRegions.Add(new Region("Pages File Offsets", "This table contains file offsets to each memory page", FlowerReflection.ListToDataTable(_manager.ObjectsOffsets)));
         }
-        if (_manager.EntryBundles.Count > 0)
+        if (_manager.EntryBundles.Length > 0)
             AddEntryTable();
         
-        if (_manager.FixupPageOffsets.Count > 0)
+        if (_manager.FixupPageOffsets.Length > 0)
             ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
         
         AddFixupRecords();
-        if (_manager.ImportRecords.Count > 0)
+        if (_manager.ImportRecords.Length > 0)
             AddImports();
         
-        if (_manager.ResidentNames.Count > 0)
+        if (_manager.ResidentNames.Length > 0)
             NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
         
-        if (_manager.ResidentNames.Count > 0)
+        if (_manager.ResidentNames.Length > 0)
             NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
     private (long code, long stack) ForRealMode()
@@ -108,10 +108,10 @@ public class LeTableManager
         var os = GetOsType(_manager.LeHeader.e32_os);
         var cpu = GetCpuType(_manager.LeHeader.e32_cpu);
         var ver = new Version((int)(_manager.LeHeader.e32_ver >> 16), (int)(_manager.LeHeader.e32_ver & 0xFFFF));
-        var objects = _manager.Objects.Count;
-        var exports = _manager.ResidentNames.Count + _manager.NonResidentNames.Count;
-        var bundles = _manager.EntryBundles.Count;
-        var imports = _manager.ImportRecords.Count;
+        var objects = _manager.Objects.Length;
+        var exports = _manager.ResidentNames.Length + _manager.NonResidentNames.Length;
+        var bundles = _manager.EntryBundles.Length;
+        var imports = _manager.ImportRecords.Length;
         var common = new ProgramSummary(
             cpu,
             ver,
@@ -365,7 +365,7 @@ public class LeTableManager
     private void AddModuleCharacteristics()
     {
         List<string> md = [];
-        var name = _manager.ResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";
+        var name = _manager.ResidentNames.Length > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";
         md.Add("### Program Header information");
         
         md.Add($"Resolved \"{_manager.ResidentNames[0].String}\" module flags:");

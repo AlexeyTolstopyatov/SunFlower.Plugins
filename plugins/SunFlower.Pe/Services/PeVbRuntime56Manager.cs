@@ -39,7 +39,7 @@ public class PeVbRuntime56Manager : DirectoryManager
             if (callOpCode != 0xE8)
                 return header; // CALL @100 not found. 
             
-            _reader.BaseStream.Position = (pushAddress - _info.ImageBase); // FINALLY!!!!!!! GOD THANK YOU!!!!!
+            _reader.BaseStream.Position = pushAddress - _info.ImageBase; // FINALLY!!!!!!! GOD THANK YOU!!!!!
             _vbanew = _reader.BaseStream.Position;
             
             header = Fill<Vb5Header>(_reader);

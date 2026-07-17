@@ -8,7 +8,7 @@ namespace SunFlower.Ne;
 [FlowerSeedContract(5,0,0)]
 public class NewExecutableSeed : IFlowerSeed
 {
-    public string Seed => "Sunflower Win16-OS/2 NE IA-32";
+    public string Seed => "NE Dump (x86)";
     public FlowerSeedStatus Status { get; } = new();
     public int Main(string path)
     {

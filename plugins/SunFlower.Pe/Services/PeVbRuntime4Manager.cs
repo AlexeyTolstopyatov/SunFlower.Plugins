@@ -26,7 +26,7 @@ public class PeVbRuntime4Manager : DirectoryManager
         // 
         // Dim ImageBaseAlignment As Long = ((OptHeader.ImageBase + OptHeader.EntryPoint) - GetPtrFromRVA(OptHeader.EntryPoint))
         // 
-        var imageBaseAlignment = (_info.ImageBase + _info.EntryPoint) - Offset(_info.EntryPoint);
+        var imageBaseAlignment = _info.ImageBase + _info.EntryPoint - Offset(_info.EntryPoint);
         try
         {
             var offset = Offset(_info.EntryPoint);

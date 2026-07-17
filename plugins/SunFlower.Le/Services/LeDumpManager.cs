@@ -10,14 +10,14 @@ public class LeDumpManager : UnsafeManager
 {
     public MzHeader MzHeader { get; }
     public LeHeader LeHeader { get; }
-    public List<ExportRecord> ResidentNames { get; }
-    public List<ExportRecord> NonResidentNames { get; }
-    public List<EntryBundle> EntryBundles { get; }
-    public List<Object> Objects { get; }
-    public List<ObjectPage> Pages { get; }
-    public List<FixupRecord> FixupRecords { get; }
-    public List<FixupPageRecord> FixupPageOffsets { get; }
-    public List<ImportRecord> ImportRecords { get; }
+    public ExportRecord[] ResidentNames { get; }
+    public ExportRecord[] NonResidentNames { get; }
+    public EntryBundle[] EntryBundles { get; }
+    public Object[] Objects { get; }
+    public ObjectPage[] Pages { get; }
+    public FixupRecord[] FixupRecords { get; }
+    public FixupPageRecord[] FixupPageOffsets { get; }
+    public ImportRecord[] ImportRecords { get; }
     public readonly ObjectPageOffsetPair[] ObjectsOffsets;
     public VxdHeader VxdHeader { get; set; }
     public VxdDescriptionBlock VxdDescriptionBlock { get; set; }
@@ -46,7 +46,7 @@ public class LeDumpManager : UnsafeManager
             throw new NotSupportedException("Doesn't have 'LE' magic");
         // I'm not done for variuos architectures. Supported only LE byte/word ordering 
         if (LeHeader.e32_worder != 0 || LeHeader.e32_border != 0)
-            throw new NotSupportedException($"Current endian rules {LeHeader.e32_worder:X2}|{LeHeader.e32_border} unsupported!");
+            throw new NotSupportedException($"The W={LeHeader.e32_worder:X2}|B={LeHeader.e32_border} ordering rules are unsupported!");
         
         var namesTables = new NamesTablesManager(reader, Offset(LeHeader.e32_restab), LeHeader.e32_nrestab);
         var importNames = new ImportNamesManager(reader, Offset(LeHeader.e32_impmod), LeHeader.e32_impmodcnt);
@@ -56,17 +56,17 @@ public class LeDumpManager : UnsafeManager
         
         var fixupPageOffsets = new FixupPagesManager(reader, Offset(LeHeader.e32_fpagetab), LeHeader.e32_mpages).GetFixupPageOffsets();
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LeHeader.e32_frectab), fixupPageOffsets);
-        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, importNames.ImportingModules.ToArray(), Offset(LeHeader.e32_impproc));
+        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, [..importNames.ImportingModules], Offset(LeHeader.e32_impproc));
         
-        NonResidentNames = namesTables.NonResidentNames;
-        ResidentNames = namesTables.ResidentNames;
-        EntryBundles = entryTable.EntryBundles;
-        Objects = objectTable.Objects;
-        FixupPageOffsets = fixupPageOffsets;
-        Pages = pagesTable.Pages;
+        NonResidentNames = [..namesTables.NonResidentNames];
+        ResidentNames = [..namesTables.ResidentNames];
+        EntryBundles = [..entryTable.EntryBundles];
+        Objects = [..objectTable.Objects];
+        FixupPageOffsets = [..fixupPageOffsets];
+        Pages = [..pagesTable.Pages];
         
-        FixupRecords = fixupRecords;
-        ImportRecords = imports;
+        FixupRecords = [..fixupRecords];
+        ImportRecords = [..imports];
         // Load all memory pages offsets
         ObjectsOffsets = GetObjectsOffsets();
         
@@ -83,7 +83,11 @@ public class LeDumpManager : UnsafeManager
         
         reader.Close();
     }
-    
+    /// <summary>
+    /// The most suffering procedure ever made 
+    /// </summary>
+    /// <param name="reader"></param>
+    /// <exception cref="Exception"></exception>
     private void CollectVirtualDriverMetadata(BinaryReader reader)
     {
         // ReDim main structure by LE program header. I'm going to isolate this data
@@ -138,12 +142,12 @@ public class LeDumpManager : UnsafeManager
             // Otherwise: I need to proceed virtual address by memory pages locations.
             // 
             // Applying ObjectsOffsets here, I'm going to return raw file pointer from the inside  
-            var offset = (entry.Type) switch
+            var offset = entry.Type switch
             {
                 EntryBundleType._16Bit => ((Entry16Bit)entry).Offset,
                 EntryBundleType._32Bit => ((Entry32Bit)entry).Offset,
                 EntryBundleType._286CallGate => ((Entry286CallGate)entry).Offset,
-                EntryBundleType.Forwarder => ((EntryForwarder)entry).OffsetOrOrdinal, // fucking unbelievable thing
+                EntryBundleType.Forwarder => ((EntryForwarder)entry).OffsetOrOrdinal, // f___ing unbelievable thing
                 _ => throw new Exception($"Given entry type is {entry.Type}")
             };
             
@@ -153,8 +157,15 @@ public class LeDumpManager : UnsafeManager
         // Last action what we need -> apply it
         var ddbEntry = EntryOrNull();
         if (ddbEntry is null)
-            return;
-        
+        {
+            // Last chance to dance. If we're lookin at the .386 virtual driver
+            // the Windows resource block is missing.
+            // Then we don't know any information about device block location. But...
+            // If we know the VxD header exists -> DDB exists too.
+            //
+            // By default we see the @1 entry point => look the first bundle and first item in the bundle  
+            ddbEntry = EntryBundles[0].Entries[0]; 
+        }
         var offset = ExtractEntryOffset(ddbEntry);
         
         reader.BaseStream.Position = offset;
@@ -169,14 +180,14 @@ public class LeDumpManager : UnsafeManager
         var firstPageOffset = LeHeader.e32_datapage;
         var pageSize = LeHeader.e32_pagesize;
 
-        return pages.Select(page => new ObjectPageOffsetPair(page.LongPageIndex, firstPageOffset + (page.LongPageIndex - 1) * pageSize)).ToArray();
+        return [..pages.Select(page => new ObjectPageOffsetPair(page.LongPageIndex, firstPageOffset + (page.LongPageIndex - 1) * pageSize))];
     }
     
     public long GetPhysicalOffset(int objectIndex, long rva)
     {
-        if (objectIndex < 1 || objectIndex > Objects.Count)
+        if (objectIndex < 1 || objectIndex > Objects.Length)
         {
-            Console.WriteLine($"object#{objectIndex}. Out of bounds ({Objects.Count})");
+            Console.WriteLine($"object#{objectIndex}. Out of bounds ({Objects.Length})");
             return -1;
         }
 

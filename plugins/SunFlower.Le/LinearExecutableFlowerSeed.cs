@@ -32,6 +32,6 @@ public class LinearExecutableFlowerSeed : IFlowerSeed
         }
     }
 
-    public string Seed => "Sunflower OS/2-Windows386 LE x86";
+    public string Seed => "LE Dump(x86)";
     public FlowerSeedStatus Status { get; } = new();
 }

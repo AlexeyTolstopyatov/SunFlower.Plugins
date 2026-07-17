@@ -8,14 +8,14 @@ public class LxDumpManager : UnsafeManager
 {
     public MzHeader MzHeader { get; }
     public LxHeader LxHeader { get; }
-    public List<ExportRecord> ResidentNames { get; }
-    public List<ExportRecord> NonResidentNames { get; }
-    public List<EntryBundle> EntryBundles { get; }
-    public List<Headers.Lx.Object> Objects { get; }
-    public List<ObjectPage> Pages { get; }
-    public List<FixupRecord> FixupRecords { get; }
-    public List<FixupPageRecord> FixupPageOffsets { get; }
-    public List<ImportRecord> ImportRecords { get; }
+    public ExportRecord[] ResidentNames { get; }
+    public ExportRecord[] NonResidentNames { get; }
+    public EntryBundle[] EntryBundles { get; }
+    public Headers.Lx.Object[] Objects { get; }
+    public ObjectPage[] Pages { get; }
+    public FixupRecord[] FixupRecords { get; }
+    public FixupPageRecord[] FixupPageOffsets { get; }
+    public ImportRecord[] ImportRecords { get; }
     private uint _offset;
 
     public uint Offset(uint addr) => _offset + addr;
@@ -45,14 +45,14 @@ public class LxDumpManager : UnsafeManager
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LxHeader.e32_frectab), fixupPageOffsets);
         var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, importNames.ImportingModules.ToArray(), Offset(LxHeader.e32_impproc));
         
-        NonResidentNames = namesTables.NonResidentNames;
-        ResidentNames = namesTables.ResidentNames;
-        EntryBundles = entryTable.EntryBundles;
-        Objects = objectTable.Objects;
-        FixupPageOffsets = fixupPageOffsets;
-        Pages = pagesTable.Pages;
-        FixupRecords = fixupRecords;
-        ImportRecords = imports;
+        NonResidentNames = [..namesTables.NonResidentNames];
+        ResidentNames = [..namesTables.ResidentNames];
+        EntryBundles = [..entryTable.EntryBundles];
+        Objects = [..objectTable.Objects];
+        FixupPageOffsets = [..fixupPageOffsets];
+        Pages = [..pagesTable.Pages];
+        FixupRecords = [..fixupRecords];
+        ImportRecords = [..imports];
         
         reader.Close();
     }
@@ -62,7 +62,7 @@ public class LxDumpManager : UnsafeManager
         // file_offset = page_data_off + offset_in_page;
         // 0: Legal physical page (preload/demand). File offset = data_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
         // 1: Iterated data page. File offset = object_iter_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
-        if (Pages.Count == 0 || Objects.Count == 0) 
+        if (Pages.Length == 0 || Objects.Length == 0) 
             return 0;
         if (objectNumber == 0)
             return 0;

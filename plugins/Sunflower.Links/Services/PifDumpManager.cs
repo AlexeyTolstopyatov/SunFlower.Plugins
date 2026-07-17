@@ -65,7 +65,7 @@ public class PifDumpManager : UnsafeManager
                 baseSectionPosition = 0x187;
                 break;
             default:
-                throw new InvalidDataException("Unable to read file like Program Information File (PIF)");
+                throw new InvalidDataException("Unable to read file like Program Information File");
         }
 
         var nextSectionOffset = baseSectionPosition;
@@ -135,11 +135,11 @@ public class PifDumpManager : UnsafeManager
             //     break;
             default:
                 var sysNaming = new string(sectionHead.Name).Trim('\0');
-                if (string.Equals(sysNaming, "CONFIG  SYS 4.0", StringComparison.InvariantCulture))
+                if (string.Equals(sysNaming, "CONFIG  SYS 4.0", StringComparison.InvariantCultureIgnoreCase))
                 {
                     
                 }
-                else if (string.Equals(sysNaming, "AUTOEXECBAT 4.0", StringComparison.InvariantCulture))
+                else if (string.Equals(sysNaming, "AUTOEXECBAT 4.0", StringComparison.InvariantCultureIgnoreCase))
                 {
                     
                 }

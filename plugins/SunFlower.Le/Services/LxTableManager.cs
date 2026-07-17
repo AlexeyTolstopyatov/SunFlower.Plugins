@@ -55,26 +55,26 @@ public class LxTableManager
         AddModuleCharacteristics();
         
         Headers.Add(new LxHeaderVisualizer(_manager.LxHeader).ToRegion());
-        if (_manager.Pages.Count > 0)
+        if (_manager.Pages.Length > 0)
             ObjectRegions.Add(new LxObjectPagesVisualizer(_manager.Pages).ToRegion());
         
-        if (_manager.Objects.Count > 0)
+        if (_manager.Objects.Length > 0)
             ObjectRegions.Add(new LxObjectTableVisualizer(_manager.Objects).ToRegion());
         
-        if (_manager.EntryBundles.Count > 0)
+        if (_manager.EntryBundles.Length > 0)
             AddEntryTable();
         
-        if (_manager.FixupPageOffsets.Count > 0)
+        if (_manager.FixupPageOffsets.Length > 0)
             ObjectRegions.Add(new FixupPagesVisualizer(_manager.FixupPageOffsets).ToRegion());
         
         AddFixupRecords();
-        if (_manager.ImportRecords.Count > 0)
+        if (_manager.ImportRecords.Length > 0)
             AddImports();
         
-        if (_manager.ResidentNames.Count > 0)
+        if (_manager.ResidentNames.Length > 0)
             NamesRegions.Add(new ResidentNamesVisualizer(_manager.ResidentNames).ToRegion());
         
-        if (_manager.ResidentNames.Count > 0)
+        if (_manager.ResidentNames.Length > 0)
             NamesRegions.Add(new NonResidentNamesVisualizer(_manager.NonResidentNames).ToRegion());
     }
     private (long code, long stack) ForRealMode()
@@ -101,10 +101,10 @@ public class LxTableManager
         var os = GetOsType(_manager.LxHeader.e32_os);
         var cpu = GetCpuType(_manager.LxHeader.e32_cpu);
         var ver = new Version((int)(_manager.LxHeader.e32_ver >> 16), (int)(_manager.LxHeader.e32_ver & 0xFFFF));
-        var objects = _manager.Objects.Count;
-        var exports = _manager.ResidentNames.Count + _manager.NonResidentNames.Count;
-        var bundles = _manager.EntryBundles.Count;
-        var imports = _manager.ImportRecords.Count;
+        var objects = _manager.Objects.Length;
+        var exports = _manager.ResidentNames.Length + _manager.NonResidentNames.Length;
+        var bundles = _manager.EntryBundles.Length;
+        var imports = _manager.ImportRecords.Length;
         var common = new ProgramSummary(
             cpu,
             ver,
@@ -356,8 +356,8 @@ public class LxTableManager
     private void AddModuleCharacteristics()
     {
         List<string> md = [];
-        var description = _manager.NonResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.NonResidentNames[0].String) : "`<missing>`";
-        var name = _manager.ResidentNames.Count > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";
+        var description = _manager.NonResidentNames.Length > 0 ? FlowerReport.SafeString(_manager.NonResidentNames[0].String) : "`<missing>`";
+        var name = _manager.ResidentNames.Length > 0 ? FlowerReport.SafeString(_manager.ResidentNames[0].String) : "`<name_missing>`";
         md.Add($"Project Name: {name}");
         md.Add($"Description: \"{description}\"");
         

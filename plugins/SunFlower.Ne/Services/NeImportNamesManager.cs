@@ -5,59 +5,55 @@ using SunFlower.Ne.Models;
 
 namespace SunFlower.Ne.Services;
 
-public struct ImportOffsets(uint imptab, uint cbimp, uint modtab, uint cbmod)
+/// <summary>
+/// Offsets for NE import tables:
+/// - ImportedNameTableOffset: offset from NE header start to the Imported Name Table (contains module names)
+/// - ModuleRefTableOffset: offset from NE header start to Module Reference Table
+/// - ModuleRefCount: number of entries in Module Reference Table
+/// </summary>
+public struct ImportOffsets(uint importedNameTableOffset, uint moduleRefTableOffset, uint moduleRefCount)
 {
-    public uint ImportingModulesOffset { get; set; } = imptab;
-    public uint ImportingModulesCount { get; set; } = cbimp;
-    public uint ModuleReferencesOffset { get; } = modtab;
-    public uint ModuleReferencesCount { get; } = cbmod;
+    public uint ImportedNameTableOffset { get; } = importedNameTableOffset;
+    public uint ModuleRefTableOffset { get; } = moduleRefTableOffset;
+    public uint ModuleRefCount { get; } = moduleRefCount;
 }
 
 public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, List<SegmentModel> segmentModels) : UnsafeManager
 {
     public List<ushort> ModuleReferences { get; } = FillModuleReferences(reader, offsets);
     public Dictionary<string, List<Import>> ImportModels { get; } = FillImports(reader, offsets, segmentModels);
-    
-    /// <summary>
-    /// Tries to fill suggesting imported module names and procedure names
-    /// </summary>
-    /// <param name="reader"></param>
-    /// <param name="offsets">structure of</param>
+
     private static Dictionary<string, List<Import>> FillImports(BinaryReader reader, ImportOffsets offsets, List<SegmentModel> segmentModels)
     {
-        // fill ModuleReferences Table
-        reader.BaseStream.Position = offsets.ModuleReferencesOffset;
-        var modTab = new List<ushort>();
-        
-        for (var i = 0; i < offsets.ModuleReferencesCount; ++i)
-        {
-            modTab.Add(reader.ReadUInt16());
-        }
-        
-        var importedModules = new Dictionary<string, List<Import>>();
-        
-        // exclude all non-import records
+        // Get all import relocations from segments
         var importRelocations = segmentModels
             .SelectMany(segment => segment.Relocations)
             .Where(reloc => reloc.RelocationType.Equals("Import", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
+        var importedModules = new Dictionary<string, List<Import>>();
+
         foreach (var relocation in importRelocations)
         {
-            var moduleName = GetModule(reader, offsets, relocation.ModuleIndex);
-            
+            var moduleName = GetModuleName(reader, offsets, relocation.ModuleIndex);
+
             if (string.IsNullOrEmpty(moduleName))
                 continue;
 
-            var procedure = GetImport(reader, offsets, relocation);
-            procedure.Module = moduleName;
+            var procedure = GetProcedureName(reader, offsets, relocation);
             
+            procedure.Module = moduleName;
+            procedure.OffsetInSegment = relocation.OffsetInSegment;
+            procedure.SegmentNumber = relocation.SegmentNumber;
+            procedure.NameOffset = relocation.NameOffset;
+
             if (!importedModules.ContainsKey(moduleName))
             {
-                importedModules[moduleName] = new List<Import>();
+                importedModules[moduleName] = [];
             }
-            
-            if (!importedModules[moduleName].Any(p => 
+
+            // Avoid duplicate imports from same module
+            if (!importedModules[moduleName].Any(p =>
                     (p.Ordinal != "@0" && p.Ordinal == procedure.Ordinal) ||
                     (!string.IsNullOrEmpty(p.Procedure) && p.Procedure == procedure.Procedure)))
             {
@@ -65,9 +61,10 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
             }
         }
 
+        // Sort imports within each module
         foreach (var module in importedModules)
         {
-            module.Value.Sort((a, b) => 
+            module.Value.Sort((a, b) =>
             {
                 if (a.Ordinal != "@0" && b.Ordinal != "@0")
                     return String.Compare(a.Ordinal, b.Ordinal, StringComparison.Ordinal);
@@ -79,17 +76,27 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
 
         return importedModules;
     }
-    private static string GetModule(BinaryReader reader, ImportOffsets offsets, ushort moduleIndex)
+
+    /// <summary>
+    /// Gets module name by module index from Module Reference Table
+    /// Module index is 1-based (index 0 = unused)
+    /// </summary>
+    private static string GetModuleName(BinaryReader reader, ImportOffsets offsets, ushort moduleIndex)
     {
         try
         {
             if (moduleIndex == 0) return string.Empty;
-            
-            reader.BaseStream.Position = offsets.ModuleReferencesOffset + 2 * (moduleIndex - 1);
-            var moduleNameOffset = reader.ReadUInt16();
-            
-            reader.BaseStream.Position = offsets.ImportingModulesOffset + moduleNameOffset;
-            return ReadPascalString(reader);
+
+            // Module Reference Table contains offsets into Imported Name Table
+            var originalPos = reader.BaseStream.Position;
+            reader.BaseStream.Position = offsets.ModuleRefTableOffset + 2 * (moduleIndex - 1);
+            var nameOffsetInImportTable = reader.ReadUInt16();
+
+            // Now read the module name from Imported Name Table
+            reader.BaseStream.Position = offsets.ImportedNameTableOffset + nameOffsetInImportTable;
+            var result = ReadPascalString(reader);
+            reader.BaseStream.Position = originalPos;
+            return result;
         }
         catch (Exception ex)
         {
@@ -97,25 +104,34 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
             return string.Empty;
         }
     }
-    private static Import GetImport(BinaryReader reader, ImportOffsets offsets, Relocation relocation)
+
+    /// <summary>
+    /// Gets procedure name from Imported Name Table using relocation info
+    /// </summary>
+    private static Import GetProcedureName(BinaryReader reader, ImportOffsets offsets, Relocation relocation)
     {
-        var procedure = new Import();
-        procedure.NameOffset = relocation.NameOffset;
-        procedure.ModuleIndex = relocation.ModuleIndex;
-        procedure.OffsetInSegment = relocation.OffsetInSegment;
-        
+        var procedure = new Import
+        {
+            ModuleIndex = relocation.ModuleIndex,
+            OffsetInSegment = relocation.OffsetInSegment
+        };
+
         if (relocation.Ordinal > 0)
         {
+            // Import by ordinal - no name available in table
             procedure.Ordinal = "@" + relocation.Ordinal;
-            procedure.Procedure = $"@{relocation.Ordinal}";
+            procedure.Procedure = "@" + relocation.Ordinal;
         }
         else if (relocation.NameOffset > 0)
         {
+            // Import by name - read procedure name from Imported Name Table
             try
             {
-                reader.BaseStream.Position = offsets.ImportingModulesOffset + relocation.NameOffset;
+                var originalPos = reader.BaseStream.Position;
+                reader.BaseStream.Position = offsets.ImportedNameTableOffset + relocation.NameOffset;
                 procedure.Procedure = ReadPascalString(reader);
                 procedure.Ordinal = "@0";
+                reader.BaseStream.Position = originalPos;
             }
             catch (Exception ex)
             {
@@ -127,23 +143,22 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
         {
             procedure.Procedure = "Anonymous";
         }
-        
+
         return procedure;
     }
+
     private static string ReadPascalString(BinaryReader reader)
     {
-        // position already set;
         var pstrLength = reader.ReadByte();
-
         return pstrLength == 0 ? "" : Encoding.ASCII.GetString(reader.ReadBytes(pstrLength));
     }
-    
+
     private static List<ushort> FillModuleReferences(BinaryReader reader, ImportOffsets offsets)
     {
-        reader.BaseStream.Position = offsets.ModuleReferencesOffset;
         var modules = new List<ushort>();
+        reader.BaseStream.Position = offsets.ModuleRefTableOffset;
 
-        for (var i = 0; i < offsets.ModuleReferencesCount; i++)
+        for (var i = 0; i < offsets.ModuleRefCount; i++)
         {
             var mod = reader.ReadUInt16();
             modules.Add(mod);

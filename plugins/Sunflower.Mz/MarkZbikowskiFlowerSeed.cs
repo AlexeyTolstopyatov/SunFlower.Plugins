@@ -8,7 +8,7 @@ namespace Sunflower.Mz;
 [Flower(SeedTarget.Data)]
 public class MarkZbikowskiFlowerSeed : IFlowerSeed
 {
-    public string Seed => "MZ Executable";
+    public string Seed => "MZ Dump";
     public FlowerSeedStatus Status { get; } = new();
     public int Main(string path)
     {
