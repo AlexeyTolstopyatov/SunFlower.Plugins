@@ -1,6 +1,6 @@
 # New Executable Flower set: support of headers/data structures and code
 
-<img src="../../assets/sunflower256.png" height="128" width="128" align="right"/>
+<img src="assets/sunflower256.png" height="128" width="128" align="right"/>
 
 The `SunFlower.NE.dll` .NET library represents a plugins/extensions
 for a SunFlower kernel to deconstruct and 

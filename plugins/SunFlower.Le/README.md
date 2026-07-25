@@ -45,6 +45,8 @@ using LE/LX format specifications.
 | Resolving Runtime Imports    | Done          |
 | Resolving Exports            | Done          |
 
+![pic](../../assets/idaversus_os2.png)
+
 ### Mixed code in Objects and Module (or Memory) Pages
 
 Depending on the Object flags bitmask an object might contain

@@ -12,7 +12,6 @@ using SunFlower.Le.Headers;
 using Object = SunFlower.Le.Headers.Le.Object;
 
 namespace SunFlower.Le.Services;
-
 public partial class LeDecoderService
 {
     private readonly LeDumpManager _dump;
@@ -28,7 +27,7 @@ public partial class LeDecoderService
     /// Fixup symbols map
     /// Far location as a key and symbol tuple as a value (with applied additive)  
     /// </summary>
-    private readonly Dictionary<(int obj, int off), (string symbol, int size)> _fixupSymbolAt = [];
+    private readonly Dictionary<(int obj, int off), (string symbol, int pageNumber)> _fixupSymbolAt = [];
 
     /// <summary>
     /// Import Procedure Names from the import procedure table. Key is a NameOffset 
@@ -61,7 +60,7 @@ public partial class LeDecoderService
             $"; SunFlower.LE.dll for Linear Executable {moduleName} (bases on Microsoft LE v.0:32)",
             $"; Objects: {_dump.Objects.Length}, ({_dump.Pages.Length} pages)",
             $"; Entry Bundles: {_dump.EntryBundles.Length}",
-            $"; Fixup Records: {_dump.FixupRecords.Length}",
+            $"; Relocations: {_dump.FixupRecords.Length}",
             $"; Imports: {_dump.ImportRecords.Length}",
             ";"
         ]);
@@ -81,7 +80,10 @@ public partial class LeDecoderService
 
         return _results.ToArray();
     }
-    
+    /// <summary>
+    /// Matches and replaces unknown far/near calls using relocation records
+    /// and known exporting procedures
+    /// </summary>
     private void DescribePseudocode()
     {
         // Firstly resolve fixup records because they have a high priority 
@@ -106,10 +108,9 @@ public partial class LeDecoderService
             var instructionOffset = Convert.ToInt32(m.Groups[5].Value, 16);
             var targetObject = Convert.ToInt16(m.Groups[1].Value, 16);
             var targetOffset = Convert.ToInt32(m.Groups[2].Value, 16);
-
             if (_fixupSymbolAt.TryGetValue((instructionObject, instructionOffset + 1), out var symbol))
             {
-                line = line.Replace($"0x{targetObject:X4}:0x{targetOffset:X4}", $"{symbol}");
+                line = line.Replace($"0x{targetObject:X4}:0x{targetOffset:X4}", $"{symbol.symbol}");
             }
 
             // Then if address still exists -> trying to replace it by exporting address
@@ -232,8 +233,11 @@ public partial class LeDecoderService
         for (var oi = 0; oi < _dump.Objects.Length; oi++)
         {
             var obj = _dump.Objects[oi];
-            if (obj.PageMapEntries == 0) continue;
-            var startLogical = (int)_dump.Pages[obj.PageMapIndex - 1].Page.LongPageIndex; // (int)obj.PageMapIndex - 1; // 0-based
+            
+            if (obj.PageMapEntries == 0) 
+                continue;
+            
+            var startLogical = (int)obj.PageMapIndex; // (int)_dump.Pages[obj.PageMapIndex - 1].Page.LongPageIndex; // ; // 0-based
             for (var pi = 0; pi < obj.PageMapEntries; pi++)
             {
                 var logicalPage = startLogical + pi; // +0 +1 +2 ...
@@ -244,14 +248,13 @@ public partial class LeDecoderService
         }
 
         uint curOffset = 0;
-        var currentLogicalPage = 0;
 
         foreach (var fixup in _dump.FixupRecords)
         {
-            while (currentLogicalPage < fpo.Length - 1 && curOffset >= fpo[currentLogicalPage + 1].Offset)
-                currentLogicalPage++;
+            // while (currentLogicalPage < fpo.Length - 1 && curOffset >= fpo[currentLogicalPage + 1].Offset)
+            //     currentLogicalPage++;
 
-            if (!logicalPageToOwner.TryGetValue(currentLogicalPage, out var owner))
+            if (!logicalPageToOwner.TryGetValue(fixup.LogicalPage, out var owner))
             {
                 AdvancePosition(ref curOffset, fixup);
                 continue;
@@ -269,8 +272,8 @@ public partial class LeDecoderService
                     if (_fixupSymbolAt.ContainsKey((objNum, objOffset)))
                         continue;
 
-                    var size = fixup.RelocationFlags.Is32BitTargetOffset ? 4 : 2;
-                    _fixupSymbolAt[(objNum, objOffset)] = (symbol, size);
+                    //var size = fixup.RelocationFlags.Is32BitTargetOffset ? 4 : 2;
+                    _fixupSymbolAt[(objNum, objOffset)] = (symbol, fixup.LogicalPage);
                 }
             }
 
@@ -423,7 +426,6 @@ public partial class LeDecoderService
         _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
         _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes");
 
-        // TODO: 
         var objBytes = BuildObjectBytesByPageIndex(obj); 
         if (objBytes == null || objBytes.Length == 0) return;
 
@@ -477,9 +479,8 @@ public partial class LeDecoderService
         {
             var line = rawLine.TrimEnd('\r');
 
-            if (Regex.IsMatch(line, @"\s+Entry point at\s+")) continue;
-            if (Regex.IsMatch(line, @"\s+p_0x[0-9A-Fa-f]+:")) continue;
-            if (Regex.IsMatch(line, @"\s+__0x[0-9A-Fa-f]+:")) continue;
+            //if (Regex.IsMatch(line, @"\s+p_0x[0-9A-Fa-f]+:")) continue;
+            //if (Regex.IsMatch(line, @"\s+__0x[0-9A-Fa-f]+:")) continue;
 
             var offMatch = Regex.Match(line, @";\s+0x([0-9A-Fa-f]+)\s");
             if (!offMatch.Success)
@@ -496,7 +497,7 @@ public partial class LeDecoderService
             }
             else if (objectNumber == _mainObj && localOff == _mainEip)
             {
-                resultLines.Add($"main: ; {objectNumber}:0x{localOff:X4}");
+                resultLines.Add("main:");
             }
 
             line = line.Replace($"; 0x{localOff:X4}", $"; {objectNumber}:0x{localOff:X4}");
@@ -507,13 +508,13 @@ public partial class LeDecoderService
                 var checkOff = localOff + delta;
                 if (_fixupSymbolAt.TryGetValue((objectNumber, checkOff), out var fixupInfo))
                 {
-                    fixupsInInst.Add((checkOff, fixupInfo.symbol, fixupInfo.size));
+                    fixupsInInst.Add((checkOff, fixupInfo.symbol, size: fixupInfo.pageNumber));
                 }
             }
 
             if (fixupsInInst.Count > 0)
             {
-                var comments = "possible references: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}"));
+                var comments = "possible references: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}+0x{f.offset:X}"));
                 line += $"{comments}";
             }
 
