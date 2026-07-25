@@ -1,3 +1,9 @@
+//
+// CoffeeLake (C) 2026-*
+//
+// Be ready to see it. This is a real shit u know... 
+// But it FINALLY WORKS fine and IDA 8.3 tells this the relocation matches right.
+// 
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
