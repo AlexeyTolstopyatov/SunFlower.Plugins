@@ -1,57 +1,45 @@
-# New Executable - supported headers and data structures
+# New Executable Flower set: support of headers/data structures and code
 
-<img src="assets/sunflower.svg" height="128" width="128" align="right"/>
+<img src="../../assets/sunflower256.png" height="128" width="128" align="right"/>
 
-I wrote articles about it and fully described all issues 
-what Microsoft documents have. 
+The `SunFlower.NE.dll` .NET library represents a plugins/extensions
+for a SunFlower kernel to deconstruct and 
+disassemble Win16 and OS/2 1.x applications. 
 
-| Structures               | Status |
-|--------------------------|--------|
-| `IMAGE_DOS_HEADER`       | [x]    |
-| `IMAGE_OS2_HEADER`       | [x]    |
-| Table of Segments        | [x]    |
-| Table of entries         | [x]    |
-| Table of importing names | [x]    |
-| Resident Names table     | [x]    |
-| Non-resident Names table | [x]    |
-| Resources table          | [ ]    |
-| Modules reference table  | [x]    |
-| Per-segment table        | [x]    |
+The `NewExecutableFlowerSeed` class presents a FlowerSeed API
+to extract all nested binary structures/tables in the program image
+Table presented next shows what is actually supports by this extension
 
-> [!WARNING]
-> EntryTable fills incorrect if LINK.EXE version earlier than 5.0
+| Structures              | Status          |
+|-------------------------|-----------------|
+| `IMAGE_DOS_HEADER`      | Done            |
+| `IMAGE_OS2_HEADER`      | Done            |
+| Segment Table           | Done            |
+| Entry Table             | Done            |
+| Import Names            | Done            |
+| Resident Name Table     | Done            |
+| Non-resident Name Table | Done            |
+| Resources Table         | Not implemented |
+| Modules Reference Table | Done            |
+| Per-Segment Relocations | Done            |
 
-### Visual Basic 4 (next plugin)
+The `NewDisassemblerSeed` class presents a FlowerSeed API to
+disassemble program image using Microsoft NE format specification. 
 
-The only source with little more information
-about it is Semi VB Decompiler (by VBGamer 45).
+| Plugin Specific              | Status        |
+|------------------------------|---------------|
+| 286 Instruction Set          | Done          |
+| Near procedures control flow | Done          |
+| Near labels control flow     | Done          |
+| Far Jumps                    | Not supported | 
+| Far procedures control flow  | Not Supported |
+| Data objects                 | Not Supported |
+| Applying of Fixups           | Done          |
+| Resolving Runtime Imports    | Done          |
+| Resolving Exports            | Done          |
 
-Semi VB decompiler contains data structures
-and determination logic but those details
-disabled in compiled version.
+Some of the program entry points will be ignored because of 
+applied program relocations will be point to the `.data` objects
 
-I'm looking for this information and trying to
-find those data structures for beeing sure, 
-that is really VB 4.0 application. 
-
-
-| Name                   | Status |
-|------------------------|--------|
-| `VB4_OLD_HEADER`       | []     |
-
-Old VB4 header locates in NE segmented image. `VB4_HEADER` locates in PE file image. 
-
-### Visual Basic 3 (next plugin)
-
-It is very difficult to make assumptions about the embedded VB 3.0 structures
-in the NE segmented file, since
-there are practically no materials on this topic left, and the only possible analysis tools that could be downloaded were obfuscated.
-
-Example of VB 3.0 application in JellyBins repo
-
-At least the number of fields, their order, and their capacity (cell data type) are known, but it will take a lot of experimentation to find out their names.
-
-> [!TIP]
-> Tested Virtual Machine is Oracle VirtualBox machine with 
-> Microsoft Windows 2000 (NT 5.0) with installed SDK (Visual Basic 3.0, 4.0), 
-> WinDbg, Visual Embedded 6.0.
+### License 
+MIT

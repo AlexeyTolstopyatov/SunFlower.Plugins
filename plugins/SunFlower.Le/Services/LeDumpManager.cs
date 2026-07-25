@@ -15,7 +15,7 @@ public class LeDumpManager : UnsafeManager
     public EntryBundle[] EntryBundles { get; }
     public Object[] Objects { get; }
     public ObjectPage[] Pages { get; }
-    public FixupRecord[] FixupRecords { get; }
+    public LeFixupRecord[] FixupRecords { get; }
     public FixupPageRecord[] FixupPageOffsets { get; }
     public ImportRecord[] ImportRecords { get; }
     public readonly ObjectPageOffsetPair[] ObjectsOffsets;

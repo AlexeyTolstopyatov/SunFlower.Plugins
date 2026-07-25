@@ -4,164 +4,202 @@ namespace SunFlower.Le.Services;
 
 public class FixupRecordsManager
 {
-    private object ReadTargetData(BinaryReader reader, byte targetType, FixupRecord record)
+    /// <summary>
+    /// Reads target data based on the relocation type from the LE fixup record.
+    /// </summary>
+    private static object ReadTargetData(BinaryReader reader, LeSourceType sourceType, LeRelocationFlags flags)
     {
-        switch (targetType)
+        switch (flags.RelocationType)
         {
-            case 0x00: // Internal reference
-                var internalTarget = new FixupTargetInternal();
-
-                if (record.Is16BitObjectModule)
-                    internalTarget.ObjectNumber = reader.ReadUInt16();
+            case LeFixupRelocationType.Internal:
+            {
+                ushort objectNumber;
+                if (flags.Is16BitObjectModule)
+                    objectNumber = reader.ReadUInt16();
                 else
-                    internalTarget.ObjectNumber = reader.ReadByte();
+                    objectNumber = reader.ReadByte();
 
-                // Target offset exists not for all types of SRC
-                if ((record.Source & 0x0F) != 0x02) // Не 16-bit selector fixup
+                uint targetOffset = 0;
+                
+                if (sourceType.AddressType != LeFixupAddressType.Selector16)
                 {
-                    if (record.Is32BitTarget)
-                        internalTarget.TargetOffset = reader.ReadUInt32();
+                    if (flags.Is32BitTargetOffset)
+                        targetOffset = reader.ReadUInt32();
                     else
-                        internalTarget.TargetOffset = reader.ReadUInt16();
+                        targetOffset = reader.ReadUInt16();
                 }
 
-                return internalTarget;
+                return new LeFixupTargetInternal(objectNumber, targetOffset);
+            }
 
-            case 0x01: // Imported reference by ordinal
-                var ordinalTarget = new FixupTargetImportedOrdinal();
+            case LeFixupRelocationType.ImportOrdinal:
+            {
+                ushort moduleIndex;
 
-                // Module ordinal
-                if (record.Is16BitObjectModule)
-                    ordinalTarget.ModuleOrdinal = reader.ReadUInt16();
+                if (flags.Is16BitObjectModule)
+                    moduleIndex = reader.ReadUInt16();
                 else
-                    ordinalTarget.ModuleOrdinal = reader.ReadByte();
+                    moduleIndex = reader.ReadByte();
 
-                // Import ordinal
-                if (record.Is8BitOrdinal)
+
+                uint importOrdinal;
+                if (flags.Is8BitImportOrdinal)
                 {
-                    ordinalTarget.ImportOrdinal = reader.ReadByte();
+                    importOrdinal = reader.ReadByte();
                 }
                 else
                 {
-                    if (record.Is32BitTarget)
-                        ordinalTarget.ImportOrdinal = reader.ReadUInt32();
+                    if (flags.Is32BitTargetOffset)
+                        importOrdinal = reader.ReadUInt32();
                     else
-                        ordinalTarget.ImportOrdinal = reader.ReadUInt16();
+                        importOrdinal = reader.ReadUInt16();
                 }
 
-                return ordinalTarget;
+                return new LeFixupTargetImportOrdinal(moduleIndex, importOrdinal);
+            }
 
-            case 0x02: // Imported reference by name
-                var nameTarget = new FixupTargetImportedName();
-
-                // Module ordinal
-                if (record.Is16BitObjectModule)
-                    nameTarget.ModuleOrdinal = reader.ReadUInt16();
+            case LeFixupRelocationType.ImportName:
+            {
+                ushort moduleIndex;
+                if (flags.Is16BitObjectModule)
+                    moduleIndex = reader.ReadUInt16();
                 else
-                    nameTarget.ModuleOrdinal = reader.ReadByte();
+                    moduleIndex = reader.ReadByte();
 
-                // Procedure name offset
-                if (record.Is32BitTarget)
-                    nameTarget.ProcedureNameOffset = reader.ReadUInt32();
+                uint nameOffset;
+                if (flags.Is32BitTargetOffset)
+                    nameOffset = reader.ReadUInt32();
                 else
-                    nameTarget.ProcedureNameOffset = reader.ReadUInt16();
+                    nameOffset = reader.ReadUInt16();
 
-                return nameTarget;
+                return new LeFixupTargetImportName(moduleIndex, nameOffset);
+            }
 
-            case 0x03: // Internal reference via entry table
-                var entryTarget = new FixupTargetEntryTable();
-
-                if (record.Is16BitObjectModule)
-                    entryTarget.EntryNumber = reader.ReadUInt16();
-                else
-                    entryTarget.EntryNumber = reader.ReadByte();
-
-                return entryTarget;
+            case LeFixupRelocationType.OsFixup:
+            {
+                var data = new byte[2];
+                if (flags.Is16BitObjectModule)
+                    data = reader.ReadBytes(2);
+                else 
+                    data = reader.ReadBytes(1);
+                    
+                return new LeFixupTargetEntryTable(data);
+            }
 
             default:
-                throw new InvalidDataException($"Unknown target type: {targetType}");
+                throw new InvalidDataException($"Unknown relocation type: {flags.RelocationType}");
         }
     }
-
-    private FixupRecord? ReadSingleFixupRecord(BinaryReader reader)
+    /// <summary>
+    /// Reads a single LE fixup record from the current stream position.
+    /// </summary>
+    private static LeFixupRecord? ReadSingleFixupRecord(BinaryReader reader)
     {
         try
         {
-            var record = new FixupRecord
-            {
-                // Base constructor
-                Source = reader.ReadByte(),
-                TargetFlags = reader.ReadByte()
-            };
+            // Read the two header bytes
+            var atp = reader.ReadByte();
+            var rtp = reader.ReadByte();
 
-            // Flags
-            record.HasSourceList = (record.Source & 0x20) != 0;
-            record.HasAdditive = (record.TargetFlags & 0x04) != 0;
-            record.Is32BitTarget = (record.TargetFlags & 0x10) != 0;
-            record.Is32BitAdditive = (record.TargetFlags & 0x20) != 0;
-            record.Is16BitObjectModule = (record.TargetFlags & 0x40) != 0;
-            record.Is8BitOrdinal = (record.TargetFlags & 0x80) != 0;
+            var sourceType = new LeSourceType(atp);
+            var flags = new LeRelocationFlags(rtp);
 
-            // Source Offset/Count
-            if (record.HasSourceList)
+            // Read source offset or count
+            ushort sourceOffset;
+            if (sourceType.HasSourceList)
             {
-                record.SourceOffset = reader.ReadByte(); // <-- Source count instead
+                // List mode: next byte is the count of source offsets
+                sourceOffset = reader.ReadByte();
             }
             else
             {
-                record.SourceOffset = reader.ReadUInt16(); // <-- Source Offset
+                // Normal mode: next 2 bytes are the source offset
+                sourceOffset = reader.ReadUInt16();
             }
 
-            var targetType = (byte)(record.TargetFlags & 0x03);
-            record.TargetData = ReadTargetData(reader, targetType, record);
+            // Read target data
+            var targetData = ReadTargetData(reader, sourceType, flags);
 
-            // if additive flags?
-            if (record.HasAdditive)
+            // Read additive value if present
+            uint? additiveValue = null;
+            if (flags.HasAdditive)
             {
-                record.AdditiveValue = record.Is32BitAdditive
+                additiveValue = flags.Is32BitAdditive
                     ? reader.ReadUInt32()
                     : reader.ReadUInt16();
             }
 
-            // sources list
-            if (!record.HasSourceList)
-                return record;
-
-            var sources = new List<ushort>();
-
-            for (var i = 0; i < record.SourceOffset; i++)
+            // Read source offset list if present
+            ushort[] sourceOffsetList = null;
+            if (sourceType.HasSourceList)
             {
-                sources[i] = reader.ReadUInt16();
+                var list = new ushort[sourceOffset];
+                for (var i = 0; i < sourceOffset; i++)
+                {
+                    list[i] = reader.ReadUInt16();
+                }
+                sourceOffsetList = list;
             }
 
-            record.SourceOffsetList = sources.ToArray();
-
-            return record;
+            return new LeFixupRecord(
+                sourceType,
+                flags,
+                sourceOffset,
+                targetData,
+                additiveValue,
+                sourceOffsetList
+            );
         }
-        catch
+        catch (EndOfStreamException)
         {
+            return null;
+        }
+        catch (Exception ex) when (ex is not EndOfStreamException)
+        {
+            // Log or handle unexpected errors
             return null;
         }
     }
 
-    public List<FixupRecord> ReadFixupRecordsTable(BinaryReader reader, uint frectab,
-        List<FixupPageRecord> fixupOffsets)
+    /// <summary>
+    /// Reads all fixup records from the fixup record table, organized by pages.
+    /// </summary>
+    public List<LeFixupRecord> ReadFixupRecordsTable(
+        BinaryReader reader,
+        uint fixupRecordTableOffset,
+        List<FixupPageRecord> pageOffsets)
     {
-        var records = new List<FixupRecord>();
-        var fixupRecordsOffset = frectab;
+        var records = new List<LeFixupRecord>();
 
-        for (var i = 0; i < fixupOffsets.Count - 1; i++)
+        for (var i = 0; i < pageOffsets.Count - 1; i++)
         {
-            var recordOffset = fixupRecordsOffset + fixupOffsets[i].Offset;
+            var pageDataOffset = pageOffsets[i].Offset;
+            var nextPageDataOffset = pageOffsets[i + 1].Offset;
+
+            // Skip empty pages (no fixups)
+            if (pageDataOffset == nextPageDataOffset)
+                continue;
+
+            var recordOffset = fixupRecordTableOffset + pageDataOffset;
             reader.BaseStream.Seek(recordOffset, SeekOrigin.Begin);
 
-            var nextOffset = fixupOffsets[i + 1].Offset;
+            var pageEndOffset = fixupRecordTableOffset + nextPageDataOffset;
 
-            while (reader.BaseStream.Position < fixupRecordsOffset + nextOffset)
+            while (reader.BaseStream.Position < pageEndOffset)
             {
                 var record = ReadSingleFixupRecord(reader);
                 if (record.HasValue)
-                    records.Add(record.Value);
+                {
+                    // Assign the logical page index (i) to each record
+                    records.Add(new LeFixupRecord(
+                        record.Value.SourceType,
+                        record.Value.RelocationFlags,
+                        record.Value.SourceOffset,
+                        record.Value.TargetData,
+                        record.Value.AdditiveValue,
+                        record.Value.SourceOffsetList,
+                        logicalPage: i));
+                }
                 else
                     break;
             }

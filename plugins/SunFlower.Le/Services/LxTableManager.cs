@@ -151,18 +151,18 @@ public class LxTableManager
     private void AddFixupRecords()
     {
         var internalFixups = _manager.FixupRecords
-            .Where(t => t.TargetData is FixupTargetInternal)
+            .Where(t => t.TargetData is LeFixupTargetInternal)
             .ToList();
 
         var internalFixupsData = internalFixups
-            .Select(t => (FixupTargetInternal)t.TargetData)
+            .Select(t => (LeFixupTargetInternal)t.TargetData)
             .ToList();
         
         if (internalFixups.Count > 0 )
         {
             ObjectRegions.Add(new Region(
                 "Internal Fixups | Common data",
-                "Every relocation record has same columns what describe next uniqe information",
+                "Every relocation record has same columns what describe next unique information",
                 FlowerReflection.ListToDataTable(internalFixups)));
             ObjectRegions.Add(new Region(
                 "Internal Fixups | Target data",
@@ -172,7 +172,7 @@ public class LxTableManager
         }
 
         var importFixups = _manager.FixupRecords
-            .Where(t => t.TargetFlags is 0x02 or 0x01)
+            .Where(t => t.TargetData is LeFixupTargetImportOrdinal or LeFixupTargetImportName)
             .ToList();
         var importFixupsData = importFixups
             .Select(t => t.TargetData)
@@ -189,11 +189,11 @@ public class LxTableManager
             {
                 switch (rec)
                 {
-                    case FixupTargetImportedName i:
-                        dt.Rows.Add($"0x{i.ModuleOrdinal:X4}", $"0x{i.ProcedureNameOffset:X8}");
+                    case LeFixupTargetImportName i:
+                        dt.Rows.Add($"0x{i.ModuleIndex:X4}", $"0x{i.NameOffset:X8}");
                         break;
-                    case FixupTargetImportedOrdinal o:
-                        dt.Rows.Add($"0x{o.ModuleOrdinal:X4}", $"@{o.ImportOrdinal}");
+                    case LeFixupTargetImportOrdinal o:
+                        dt.Rows.Add($"0x{o.ModuleIndex:X4}", $"@{o.ImportOrdinal}");
                         break;
                 }
             }
@@ -205,30 +205,6 @@ public class LxTableManager
                 "Import Fixups | Target data",
                 "Importing procedures unique data",
                 dt));
-        }
-        
-        // those tables are same with fields
-        
-        var entFixups = _manager.FixupRecords
-            .Where(t => t.TargetData is FixupTargetEntryTable)
-            .ToList();
-        var entFixupData = entFixups
-            .Select(t => (FixupTargetEntryTable)t.TargetData)
-            .ToList();
-        
-        if (entFixups.Count > 0)
-        {
-            ObjectRegions.Add(
-                new Region(
-                    "Fixups via EntryTable | Common data",
-                    "IBM documentation tells, this record is a pointer to entry table of _current module_",
-                    FlowerReflection.ListToDataTable(entFixups)
-                ));
-            ObjectRegions.Add(new Region(
-                "Fixups via EntryTable | Target data",
-                "This is a list of indexes/ordinals of entries in entry table of current module",
-                FlowerReflection.ListToDataTable(entFixupData)
-            ));
         }
     }
     private void AddImports()

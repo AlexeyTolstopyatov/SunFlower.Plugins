@@ -8,7 +8,6 @@
 // @creator: atolstopyatov2017@vk.com
 //
 
-using System.Dynamic;
 using SunFlower.Abstractions;
 using SunFlower.Abstractions.Types;
 using SunFlower.Ne.Services;

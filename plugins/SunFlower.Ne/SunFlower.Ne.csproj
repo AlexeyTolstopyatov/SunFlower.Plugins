@@ -16,9 +16,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\SunFlower\src\Sunflower.Dasm\Sunflower.Dasm.fsproj" />
-  </ItemGroup>
-  <ItemGroup>
     <None Update="opcodes386.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

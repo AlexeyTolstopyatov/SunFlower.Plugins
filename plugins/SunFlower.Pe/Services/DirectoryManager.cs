@@ -17,7 +17,7 @@ namespace SunFlower.Pe.Services;
 public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
 {
     /// <returns> Directory exists when someone of 2 parameters not 0 </returns>
-    protected bool IsDirectoryExists(PeDirectory dir)
+    protected static bool IsDirectoryExists(PeDirectory dir)
     {
         return dir.Size != 0 || dir.VirtualAddress != 0;
     }

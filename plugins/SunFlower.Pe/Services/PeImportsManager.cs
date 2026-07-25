@@ -45,7 +45,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
                 Byte[] name = [];
                 while (true)
                 {
-                    var b = Fill<Byte>(reader);
+                    var b = Fill<byte>(reader);
                     if (b == 0) break;
 
                     var dllName = new Byte[name.Length + 1];

@@ -1,37 +1,66 @@
-# Linear Executable - supported headers and data structures
+# Linear Executable: supported headers and data structures
 
-<img src="assets/sunflower.svg" height="128" width="128" align="right"/>
+<img src="assets/sunflower256.png" height="128" width="128" align="right" title="SunFlower logo"/>
 
-LE combined format has 16-bit and 32-bit code segments (objects for now)
-and some details in format are not compatible with next OS/2 module format (LX format) 
+LE combined format has 16-bit and 32-bit code/data objects
+and some details in format are not compatible with 
+IBM OS/2 module format (i.e. LX format) 
 
-> [!WARNING]
-> Rework of it bases on "Undocumented Windows Formats | Inside 16-32 code"
-> According to the book, LX executables from OS/2 and IBM documents are
-> compatible with LE linked images. 
-
-| Structure                 | Status |
-|---------------------------|--------|
-| `LE_HEADER`               | [x]    |
-| Importing modules table   | [x]    |
-| Importing procedures      | [x]    |
-| Object table              | [x]    |
-| Object Page Table         | [x]    |
-| Entries Table             | [x]    |
-| Resident Names table      | [x]    |
-| Non-resident Names table  | [x]    |
-| Module Format Directives  | [x]    |
-| Fixup Pages               | [x]    |
-| Fixup Records             | [x]    |
-| Preload pages             | []     |
-| Iterated Data pages       | []     |
-| Demand load pages         | []     |
-| Debug information         | []     |
-| Resource Table            | []     |
+| Structure                | Status |
+|--------------------------|--------|
+| `LE_HEADER`              | [x]    |
+| Importing modules table  | [x]    |
+| Importing procedures     | [x]    |
+| Object table             | [x]    |
+| Object Page Table        | [x]    |
+| Entry Table              | [x]    |
+| Resident Name  Table     | [x]    |
+| Non-resident Name  Table | [x]    |
+| Module Format Directives | [x]    |
+| Fixup Pages              | [x]    |
+| Fixup Records            | [x]    |
+| Preload Pages            | []     |
+| Iterated Data Pages      | []     |
+| Demand load Pages        | []     |
+| Debug Information        | []     |
+| Resource Table           | []     |
 
 Hard and non-linear data structures are `EntryTable` and `FixupRecordsTable` but they are extremely needed
 to resolve import and export information from file. All relocations and computed addresses are hint
-for understanding how current program/driver may work. 
+for understanding how current program/driver may work.
+
+The `LeDisassemblerSeed` and `LxDisassemblerSeed` classes 
+present a FlowerSeed API to disassemble program image 
+using LE/LX format specifications.
+
+| Plugin Specific              | Status        |
+|------------------------------|---------------|
+| 386 Instruction Set          | Done          |
+| Near procedures control flow | Done          |
+| Near labels control flow     | Done          |
+| Far Jumps                    | Not supported | 
+| Far procedures control flow  | Not Supported |
+| Data objects                 | Not Supported |
+| Applying of Fixups           | Done          |
+| Resolving Runtime Imports    | Done          |
+| Resolving Exports            | Done          |
+
+### Mixed code in Objects and Module (or Memory) Pages
+
+Depending on the Object flags bitmask an object might contain
+32-bit or 16-bit code. 16-bit code will be executed in the V86 mode.
+
+As the `LNK386.EXE` generates program text depending on the 386+ instruction set,
+the default operand size is standing for 32-bit. Instructions with the `0x66` 
+prefix will be changed their size, as the fact of x86 `0x66` instruction prefix tells that operand size will be changed.
+
+The instruction in the 32-bit code object changes operand size `32 -> 16`-bit.
+For else in the 16-bit code object, instruction operands are 16-bit already and
+existence of `0x66` byte prefix change `16 -> 32`-bit operand size.
+
+This idea uses in this .NET library to deconstruct Linear Executables.
+
+Read [my docs](https://github.com/AlexeyTolstopyatov/le-spec) to get more information about.
 
 ### VxD Model
 
@@ -51,17 +80,11 @@ which system tries to find and resolve
 |---------------------------|--------|
 | `VXD_HEADER`              | [x]    |
 | Driver Resources          | [x]    |
-| Driver Description Block  | []     |
+| Driver Description Block  | [x]    |
 | Win32 Resource scripts    | []     |
 
 Driver resources structure has many names, in code of sunflower
 it calls `VxdResource` like `VxdHeader` see it by `.../plugins/SunFlower.Le/Headers/Le` path
-
-> [!TIP]
-> The most popular and right way to define virtual device driver is 
-> a non-zero `e32_winres_off` field. This is an absolute (raw file pointer)
-> to `VXD_RESOURCE` structure. Data length of this struct `e32_winres_length`
-> are optional value (i suggest), and not uses by loader for image definition.
 
 Field `e32_winres_off` names fully like this "Executable Win32 Resources offset"
 and this is right for now. This suggestion is right because raw file pointer `e32_winres_off`
@@ -93,34 +116,33 @@ Usually after this  (when `VS_VERSION_INFO`) ends
 stays EOF (or simply driver's image ends)
 ```
 
-I also suggest, main data what system expects
-from virtual device driver is a description block
-or `DDB`. (may be it calls "Driver/Device Description Block")
+I also suppose, main data what system expects is a Device Declaration block
+or `DDB`.
 
 ```java
 public class DescriptionBlock {
-    public int DDB_Next;         /* VMM RESERVED FIELD */
-    public short DDB_SDK_Version;     /* INIT <DDK_VERSION> RESERVED FIELD */
-    public short DDB_Req_Device_Number;   /* INIT <UNDEFINED_DEVICE_ID> */
-    public byte DDB_Dev_Major_Version;    /* INIT <0> Major device number */
-    public byte DDB_Dev_Minor_Version;    /* INIT <0> Minor device number */
-    public short DDB_Flags;           /* INIT <0> for init calls complete */
-    public byte[] DDB_Name;          /* 8 bytes AINIT <"        "> Device name */
-    public int DDB_Init_Order;       /* INIT <UNDEFINED_INIT_ORDER> */
-    public int DDB_Control_Proc;     /* Offset of control procedure */
-    public int DDB_V86_API_Proc;     /* INIT <0> Offset of API procedure */
-    public int DDB_PM_API_Proc;      /* INIT <0> Offset of API procedure */
-    public int DDB_V86_API_CSIP;     /* INIT <0> CS:IP of API entry point */
-    public int DDB_PM_API_CSIP;      /* INIT <0> CS:IP of API entry point */
-    public int DDB_Reference_Data;       /* Reference data from real mode */
-    public int DDB_Service_Table_Ptr;    /* INIT <0> Pointer to service table */
-    public int DDB_Service_Table_Size;   /* INIT <0> Number of services */
-    public int DDB_Win32_Service_Table;  /* INIT <0> Pointer to Win32 services */
-    public int DDB_Prev;         /* INIT <'Prev'> Ptr to prev 4.0 DDB */
-    public int DDB_Reserved0;        /* INIT <0> Reserved */
-    public int DDB_Reserved1;        /* INIT <'Rsv1'> Reserved */
-    public int DDB_Reserved2;        /* INIT <'Rsv2'> Reserved */
-    public int DDB_Reserved3;        /* INIT <'Rsv3'> Reserved */
+    public int Next;             /* VMM RESERVED FIELD */
+    public short SDK_Version;    /* INIT <DDK_VERSION> RESERVED FIELD */
+    public short Device_Number;  /* INIT <Undefined_Device_Id> */
+    public byte Major_Version;   /* INIT <0> Major device number */
+    public byte Minor_Version;   /* INIT <0> Minor device number */
+    public short Flags;          /* INIT <0> for init calls complete */
+    public byte[] Name;          /* INIT <"        "> Device name */
+    public int Init_Order;       /* INIT <Undefined_Init_Order> */
+    public int Control_Proc;     /* Offset of control procedure */
+    public int V86_API_Proc;     /* INIT <0> Offset of API procedure */
+    public int PM_API_Proc;      /* INIT <0> Offset of API procedure */
+    public int V86_API_CSIP;     /* INIT <0> CS:IP of API entry point */
+    public int PM_API_CSIP;      /* INIT <0> CS:IP of API entry point */
+    public int Reference_Data;   /* Reference data from real mode */
+    public int Service_Table;    /* INIT <0> Pointer to service table */
+    public int Service_Size;     /* INIT <0> Number of services */
+    public int Win32_Table;      /* INIT <0> Pointer to Win32 services */
+    public int Prev;             /* INIT <'Prev'> Ptr to prev 4.0 DDB */
+    public int Reserved0;        /* INIT <0> Reserved */
+    public int Reserved1;        /* INIT <'Rsv1'> Reserved */
+    public int Reserved2;        /* INIT <'Rsv2'> Reserved */
+    public int Reserved3;        /* INIT <'Rsv3'> Reserved */
 }
 ```
 
@@ -128,9 +150,6 @@ And location of it holds in EntryPoints table.
 One of not-resident names always names with `_DDB` postfix
 and ordinal or this non-resident name is a position
 of record (entry point) in entry points bundles (or just in EntryPoints table)
-
-> [!WARNING] this information took from undocumented
-> sources and partially by sunflower experiments
 
 ```
             | <resident_record>_DDB | @1 | 0xABCD |
@@ -154,3 +173,7 @@ Entry Bundle #1 (32-bit)              |
     instructions. They can be a unsafe structs
     or just pointers to something in segment.
 ```
+
+# License 
+
+MIT

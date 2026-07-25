@@ -13,7 +13,7 @@ public class LxDumpManager : UnsafeManager
     public EntryBundle[] EntryBundles { get; }
     public Headers.Lx.Object[] Objects { get; }
     public ObjectPage[] Pages { get; }
-    public FixupRecord[] FixupRecords { get; }
+    public LeFixupRecord[] FixupRecords { get; }
     public FixupPageRecord[] FixupPageOffsets { get; }
     public ImportRecord[] ImportRecords { get; }
     private uint _offset;

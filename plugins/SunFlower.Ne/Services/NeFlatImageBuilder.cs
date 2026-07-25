@@ -117,7 +117,7 @@ public class NeFlatImageBuilder(NeDumpManager dump)
                 Array.Copy(segBytes, 0, _image, baseAddr, read);
 
                 // Build address map
-                for (int i = 0; i < read; i++)
+                for (var i = 0; i < read; i++)
                 {
                     _addressMap[baseAddr + i] = new FlatSource
                     {
@@ -153,7 +153,7 @@ public class NeFlatImageBuilder(NeDumpManager dump)
         };
     }
 
-    private FlatImageResult CreateEmptyResult()
+    private static FlatImageResult CreateEmptyResult()
     {
         return new FlatImageResult
         {
@@ -242,7 +242,7 @@ public class NeFlatImageBuilder(NeDumpManager dump)
     {
         // Main entry point from header CS:IP
         var cs = dump.NeHeader.NE_CsIp >> 16;
-        var ip = (uint)(dump.NeHeader.NE_CsIp & 0xFFFF);
+        var ip = dump.NeHeader.NE_CsIp & 0xFFFF;
 
         var flatCsIp = ConvertSegOffsetToFlat(cs, (int)ip);
         if (flatCsIp >= 0)
@@ -256,13 +256,13 @@ public class NeFlatImageBuilder(NeDumpManager dump)
                 if (ep.Type == "[UNUSED]")
                     continue;
 
-                var flatEp = ConvertSegOffsetToFlat(ep.Segment, (int)ep.Offset);
+                var flatEp = ConvertSegOffsetToFlat(ep.Segment, ep.Offset);
                 if (flatEp >= 0)
                 {
                     _flatEntryPoints.Add(flatEp);
 
                     // Check if this is an export
-                    if (_exportByName.TryGetValue((int)ep.Ordinal, out var expName))
+                    if (_exportByName.TryGetValue(ep.Ordinal, out var expName))
                     {
                         _exportAtFlat[flatEp] = expName;
                     }
@@ -324,27 +324,24 @@ public class NeFlatImageBuilder(NeDumpManager dump)
 
                 // Import by ordinal
                 // Completed condition of being unnamed import: rel.Ordinal > 0
+                var moduleIdx = rel.ModuleIndex;
+                var matchingImport = allImports.FirstOrDefault(i =>
+                    i.ModuleIndex == moduleIdx && i.Ordinal == "@" + rel.Ordinal);
+
                 if (rel.Ordinal > 0)
                 {
-                    var moduleIdx = rel.ModuleIndex;
-                    var matchingImport = allImports.FirstOrDefault(i =>
-                        i.ModuleIndex == moduleIdx && i.Ordinal == "@" + rel.Ordinal);
-
                     symbol = matchingImport != null
-                        ? $"{matchingImport.Module}!{matchingImport.Ordinal}"
-                        : $"@?{rel.Ordinal}";
+                        ? $"{matchingImport.Module}::{matchingImport.Ordinal}"
+                        : $"::@?{rel.Ordinal}";
                 }
                 // Import by name
                 else if (rel.NameOffset > 0)
                 {
                     // Interesting fact: Import procedure names can't have 
                     // same address in the import table. Matching by module name is redundant
-                    var matchingImport = allImports.FirstOrDefault(i =>
-                        i.NameOffset == rel.NameOffset);
-
                     symbol = matchingImport != null
-                        ? $"{matchingImport.Module}!{matchingImport.Procedure}"
-                        : $"<module>!0x{rel.NameOffset:X4}";
+                        ? $"{matchingImport.Module}::{matchingImport.Procedure}"
+                        : $"module[{rel.ModuleIndex}]::name_0x{rel.NameOffset:X4}";
                 }
                 else
                 {
@@ -363,22 +360,6 @@ public class NeFlatImageBuilder(NeDumpManager dump)
             }
         }
     }
-
-    private static string SanitizeSymbol(string s)
-    {
-        var sb = new StringBuilder();
-        foreach (var c in s)
-        {
-            if (char.IsLetterOrDigit(c) || c == '_' || c == '@' || c == '.' || c == '$')
-                sb.Append(c);
-            else
-                sb.Append('_');
-        }
-
-        var result = sb.ToString().Trim('_');
-        return string.IsNullOrEmpty(result) ? "sym" : result;
-    }
-
     /// <summary>
     /// Converts a NE segment:offset pair to a flat address.
     /// Returns -1 if the segment is not a code segment.

@@ -5,7 +5,7 @@ using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Visualizers;
 
-public class FixupRecordsVisualizer(List<FixupRecord> @struct) : AbstractStructVisualizer<List<FixupRecord>>(@struct)
+public class FixupRecordsVisualizer(List<LeFixupRecord> @struct) : AbstractStructVisualizer<List<LeFixupRecord>>(@struct)
 {
     public override DataTable ToDataTable()
     {

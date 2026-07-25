@@ -21,10 +21,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using Microsoft.FSharp.Data.UnitSystems.SI.UnitNames;
 using Sunflower.Dasm;
-using SunFlower.Ne.Headers;
-using SunFlower.Ne.Models;
 
 namespace SunFlower.Ne.Services;
 
@@ -330,8 +327,6 @@ public class NeDecoderService
                     
                 }
             }
-            // Добавьте здесь другие проверки, если нужно (например, для RETF)
-
             sb.AppendLine(modifiedLine);
         }
 

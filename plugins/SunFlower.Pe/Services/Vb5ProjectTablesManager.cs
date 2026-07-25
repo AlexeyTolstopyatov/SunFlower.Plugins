@@ -74,7 +74,7 @@ public class Vb5ProjectTablesManager : DirectoryManager
         reader.Close();
     }
 
-    private string FromCString(in BinaryReader reader, long offset)
+    private static string FromCString(in BinaryReader reader, long offset)
     {
         reader.BaseStream.Position = offset;
         var b = reader.ReadChar();

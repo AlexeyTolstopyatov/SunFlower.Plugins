@@ -285,22 +285,22 @@ public class PifTableManager
         table.Columns.Add("Value", typeof(string));
         
         var data = _manager.Windows4XVmm;
-        
+
         AddField(table, "Reserved88", data.Reserved88, bytes => BitConverter.ToString(bytes).Replace("-", ""));
-        
+
         AddField(table, "IconStorage", data.IconStorage, TryExcludeSpecificAscii);
-        
+
         AddField(table, "IconIndex", data.IconIndex, v => $"{v} (0x{v:X4})");
         AddField(table, "DosModeFlags", data.DosModeFlags, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "Reserved10", data.Reserved10, TryExcludeSpecificAscii);
         AddField(table, "Priority", data.Priority, v => $"{v} (0x{v:X4})");
         AddField(table, "DosWindowFlags", data.DosWindowFlags, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "Reserved8", data.Reserved8, bytes => BitConverter.ToString(bytes).Replace("-", ""));
         AddField(table, "NumberOfLines", data.NumberOfLines, v => $"{v} (0x{v:X4})");
         AddField(table, "ShortcutKeyFlags", data.ShortcutKeyFlags, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "Reserved00", data.Reserved00, v => $"{v} (0x{v:X4})");
         AddField(table, "Reserved05", data.Reserved05, v => $"{v} (0x{v:X4})");
         AddField(table, "Reserved19", data.Reserved19, v => $"{v} (0x{v:X4})");
@@ -309,22 +309,22 @@ public class PifTableManager
         AddField(table, "Reserved3E8", data.Reserved3E8, v => $"{v} (0x{v:X4})");
         AddField(table, "Reserved02", data.Reserved02, v => $"{v} (0x{v:X4})");
         AddField(table, "Reserved0A", data.Reserved0A, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "MouseFlags", data.MouseFlags, v => $"{v} (0x{v:X4})");
         AddField(table, "Reserved6", data.Reserved6, bytes => BitConverter.ToString(bytes).Replace("-", ""));
-        
+
         AddField(table, "FontFlags", data.FontFlags, v => $"{v} (0x{v:X4})");
         AddField(table, "Unknown", data.Unknown, v => $"{v} (0x{v:X4})");
         AddField(table, "CurrentFontSizeX", data.CurrentFontSizeX, v => $"{v} (0x{v:X4})");
         AddField(table, "CurrentFontSizeY", data.CurrentFontSizeY, v => $"{v} (0x{v:X4})");
         AddField(table, "CurrentFontSizeXToo", data.CurrentFontSizeXToo, v => $"{v} (0x{v:X4})");
         AddField(table, "CurrentFontSizeYToo", data.CurrentFontSizeYToo, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "RasterFontName", data.RasterFontName, TryExcludeSpecificAscii);
         AddField(table, "TrueTypeFontName", data.TrueTypeFontName, TryExcludeSpecificAscii);
-        
+
         AddField(table, "UnknownWinNt", data.UnknownWinNt, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "ToolBarFlags", data.ToolBarFlags, v => $"{v} (0x{v:X4})");
         AddField(table, "ScreenSizeX", data.ScreenSizeX, v => $"{v} (0x{v:X4})");
         AddField(table, "ScreenSizeY", data.ScreenSizeY, v => $"{v} (0x{v:X4})");
@@ -332,40 +332,40 @@ public class PifTableManager
         AddField(table, "ClientWindowAreaY", data.ClientWindowAreaY, v => $"{v} (0x{v:X4})");
         AddField(table, "WindowSizeX", data.WindowSizeX, v => $"{v} (0x{v:X4})");
         AddField(table, "WindowSizeY", data.WindowSizeY, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "AlsoUnknown", data.AlsoUnknown, v => $"{v} (0x{v:X4})");
         AddField(table, "RestoreFlag", data.RestoreFlag, v => $"{v} (0x{v:X4})");
 
         var state = "";
         if ((data.WindowStateFlag & 0x02) != 0)
             state = "Last Window state - Maximized";
-        
+
         AddField(table, "WindowStateFlag", data.WindowStateFlag, v => $"{state} (0x{v:X4})");
         AddField(table, "WindowState", data.WindowState, v => $"{v} (0x{v:X4})");
         AddField(table, "UnknownWin951", data.UnknownWin951, v => $"{v} (0x{v:X4})");
         AddField(table, "UnknownWin952", data.UnknownWin952, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "RightMaxBorderPosition", data.RightMaxBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "BottomMaxBorderPosition", data.BottomMaxBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "LeftMaxBorderPosition", data.LeftMaxBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "TopMaxBorderPosition", data.TopMaxBorderPosition, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "RightBorderPosition", data.RightBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "BottomBorderPosition", data.BottomBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "LeftBorderPosition", data.LeftBorderPosition, v => $"{v} (0x{v:X4})");
         AddField(table, "TopBorderPosition", data.TopBorderPosition, v => $"{v} (0x{v:X4})");
-        
+
         AddField(table, "AnotherUnknown0", data.AnotherUnknown0, v => $"{v} (0x{v:X8})");
-        
+
         AddField(table, "CmdFileName", data.CmdFileName, TryExcludeSpecificAscii);
-        
+
         AddField(table, "EnvironmentMemAlloc", data.EnvironmentMemAlloc, v => $"{v} (0x{v:X4})");
         AddField(table, "DpmiAlloc", data.DpmiAlloc, v => $"{v} (0x{v:X4})");
         AddField(table, "Unknown1", data.Unknown1, v => $"{v} (0x{v:X4})");
 
         WindowsVmmTable = table;
     }
-    private void AddField<T>(DataTable table, string name, T value, Func<T, string> formatter)
+    private static void AddField<T>(DataTable table, string name, T value, Func<T, string> formatter)
     {
         var row = table.NewRow();
         row["Segment"] = name;

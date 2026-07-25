@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        ".fantomasignore": "ignore",
+        "*.zig": "zig",
+        "*.zon": "zig",
+        "*.{a80,z80,asm,inc,s}": "asm-collection",
+        "*.{list,lis}": "asm-list-file",
+        "DEMO.C": "cpp"
+    }
+}

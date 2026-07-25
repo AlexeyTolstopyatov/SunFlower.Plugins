@@ -58,7 +58,7 @@ public class EntryForwarder : Entry
 public class EntryUnused : Entry
 {
     public override EntryBundleType Type => EntryBundleType.Unused;
-    public string EntryType => "[SPACE]";
+    public static string EntryType => "[SPACE]";
 }
 
 public class EntryBundle

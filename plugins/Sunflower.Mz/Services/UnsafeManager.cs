@@ -15,7 +15,7 @@ public class UnsafeManager
     /// <param name="reader"><see cref="BinaryReader"/> instance </param>
     /// <typeparam name="TStruct">structure</typeparam>
     /// <returns></returns>
-    protected TStruct Fill<TStruct>(BinaryReader reader) where TStruct : struct
+    protected static TStruct Fill<TStruct>(BinaryReader reader) where TStruct : struct
     {
         var bytes = reader.ReadBytes(Marshal.SizeOf(typeof(TStruct)));
         var handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
