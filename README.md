@@ -5,7 +5,8 @@
 This repository contains plugins which always include
 in [SunFlower](https://github.com/AlexeyTolstopyatov/SunFlower) releases
 
-> [!NOTE] At the moment of SunFlower 5.0 release
+> [!NOTE] 
+> At the moment of SunFlower 5.0 release
 > Plugins are in active testing and developing stage and some of
 > functions are not work correct or might be not implemented at all
 >

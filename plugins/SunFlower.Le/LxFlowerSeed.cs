@@ -5,7 +5,7 @@ using SunFlower.Le.Services;
 namespace SunFlower.Le;
 [Flower(SeedTarget.Data)]
 [FlowerSeedContract(5, 0, 0)]
-public class LinearExecutable32FlowerSeed : IFlowerSeed
+public class LxFlowerSeed : IFlowerSeed
 {
     public string Seed => "LX Dump (x86)";
     public FlowerSeedStatus Status { get; } = new();

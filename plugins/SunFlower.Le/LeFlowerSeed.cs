@@ -5,7 +5,7 @@ using SunFlower.Le.Services;
 namespace SunFlower.Le;
 [Flower(SeedTarget.Data)]
 [FlowerSeedContract(5,0,0)]
-public class LinearExecutableFlowerSeed : IFlowerSeed
+public class LeFlowerSeed : IFlowerSeed
 {
     public int Main(string path)
     {
