@@ -365,7 +365,7 @@ public partial class LeDecoderService
                     _ => (-1, "<unbelievable entry point>")
                 };
                 if (string.IsNullOrEmpty(pair.name))
-                    pair.name = $"_@{entry.Ordinal}";
+                    pair.name = $"@{entry.Ordinal}";
                 
                 if (pair.offset >= 0 && objNum > 0)
                     _exportAt[(objNum, pair.offset)] = FailSafe(pair.name);
