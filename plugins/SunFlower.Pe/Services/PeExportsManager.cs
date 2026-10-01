@@ -23,13 +23,8 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
     private readonly FileSectionsInfo _info = info;
     public PeExportTableModel ExportTableModel { get; private set; } = new();
 
-    public static PeExportsManager CreateInstance(FileSectionsInfo info, string path)
-    { 
-        return new(info, path);
-    }
-    
     // Declare Imports Exports CRT BaseRelocs (and other) sections here.
-    public void Initialize()
+    public void Dump()
     {
         // run main process
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
@@ -60,17 +55,17 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
         var moduleName = ReadImportString(reader);
         Debug.WriteLine(moduleName);
         
-        var functionAddresses = ReadArray<UInt32>(reader, exportDir.AddressOfFunctions, exportDir.NumberOfFunctions);
-        var namePointers = ReadArray<UInt32>(reader, exportDir.AddressOfNames, exportDir.NumberOfNames);
-        var ordinals = ReadArray<UInt16>(reader, exportDir.AddressOfNameOrdinals, exportDir.NumberOfNames);
+        var functionAddresses = ReadArray<uint>(reader, exportDir.AddressOfFunctions, exportDir.NumberOfFunctions);
+        var namePointers = ReadArray<uint>(reader, exportDir.AddressOfNames, exportDir.NumberOfNames);
+        var ordinals = ReadArray<ushort>(reader, exportDir.AddressOfNameOrdinals, exportDir.NumberOfNames);
 
         for (var i = 0; i < exportDir.NumberOfNames; i++)
         {
             var functionName = ReadExportString(reader, namePointers[i]);
             var ordinal = ordinals[i] + exportDir.Base;
             var address = _info.Is64Bit 
-                ? ReadArray<UInt64>(reader, functionAddresses[ordinals[i]], 1)[0] 
-                : ReadArray<UInt32>(reader, functionAddresses[ordinals[i]], 1)[0];
+                ? ReadArray<ulong>(reader, functionAddresses[ordinals[i]], 1)[0] 
+                : ReadArray<uint>(reader, functionAddresses[ordinals[i]], 1)[0];
 
             model.Functions.Add(new ExportFunction // <-- Exported Functions added
             {
@@ -85,10 +80,10 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
     
     /// <param name="reader"> <see cref="BinaryReader"/> instance </param>
     /// <returns> ASCIIZ typed string <c>TSTR</c> </returns>
-    private static String ReadImportString(BinaryReader reader)
+    private static string ReadImportString(BinaryReader reader)
     {
-        List<Byte> bytes = [];
-        Byte b;
+        List<byte> bytes = [];
+        byte b;
         while ((b = reader.ReadByte()) != 0)
             bytes.Add(b);
         
@@ -97,12 +92,12 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
     /// <param name="reader"><see cref="BinaryReader"/> instance</param>
     /// <param name="rva">rva of entry name</param>
     /// <returns> ASCII(Z) string of exported entry</returns>
-    private String ReadExportString(BinaryReader reader, UInt32 rva)
+    private string ReadExportString(BinaryReader reader, uint rva)
     {
         var offset = Offset(rva);
         reader.BaseStream.Seek(offset, SeekOrigin.Begin);
-        List<Byte> bytes = [];
-        Byte b;
+        List<byte> bytes = [];
+        byte b;
         while ((b = reader.ReadByte()) != 0)
             bytes.Add(b);
         return Encoding.ASCII.GetString(bytes.ToArray());

@@ -24,7 +24,7 @@ public class PeDumpManager(string path) : UnsafeManager
     public Vb4Header Vb4Header { get; private set; }
     public bool Is64Bit { get; set; }
     public long VbOffset { get; private set; }
-    public void Initialize()
+    public void Dump()
     {
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
         BinaryReader reader = new(stream);
@@ -34,17 +34,17 @@ public class PeDumpManager(string path) : UnsafeManager
         
         FileSectionsInfo info = new()
         {
-            FileAlignment = Is64Bit ? OptionalHeader.SectionAlignment : OptionalHeader32.SectionAlignment,
-            SectionAlignment = Is64Bit ? OptionalHeader.SectionAlignment : OptionalHeader32.SectionAlignment,
-            ImageBase = Is64Bit ? OptionalHeader.ImageBase : OptionalHeader32.ImageBase,
-            BaseOfCode = Is64Bit ? OptionalHeader.BaseOfCode : OptionalHeader32.BaseOfCode,
-            BaseOfData = Is64Bit ? OptionalHeader.BaseOfData : OptionalHeader32.BaseOfData,
+            FileAlignment = OptionalHeader.SectionAlignment,
+            SectionAlignment =  OptionalHeader.SectionAlignment ,
+            ImageBase = OptionalHeader.ImageBase,
+            BaseOfCode =  OptionalHeader.BaseOfCode,
+            BaseOfData = OptionalHeader.BaseOfData,
             Sections = PeSections,
             Directories = PeDirectories,
             NumberOfSections = FileHeader.NumberOfSections,
-            NumberOfRva = Is64Bit ? OptionalHeader.NumberOfRvaAndSizes : OptionalHeader32.NumberOfRvaAndSizes,
+            NumberOfRva = OptionalHeader.NumberOfRvaAndSizes,
             Is64Bit = Is64Bit,
-            EntryPoint = Is64Bit ? OptionalHeader.AddressOfEntryPoint : OptionalHeader32.AddressOfEntryPoint
+            EntryPoint = OptionalHeader.AddressOfEntryPoint
         };
         
         FileSectionsInfo = info;
@@ -96,7 +96,8 @@ public class PeDumpManager(string path) : UnsafeManager
         }
         else
         {
-            OptionalHeader32 = Fill<PeOptionalHeader32>(reader);
+            var header = Fill<PeOptionalHeader32>(reader);
+            OptionalHeader = PeOptionalHeader32.Into(ref header);
             PeDirectories = OptionalHeader32.Directories;
         }
     }

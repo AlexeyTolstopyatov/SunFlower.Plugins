@@ -1,0 +1,82 @@
+using System.Data;
+using System.Text;
+using SunFlower.Abstractions;
+using SunFlower.Abstractions.Types;
+using SunFlower.Unix.Models;
+
+namespace SunFlower.Unix.Visualizers;
+
+public class AOutSymbolsVisualizer(IReadOnlyList<AOutSymbol> symbols) : AbstractStructVisualizer<IReadOnlyList<AOutSymbol>>(symbols)
+{
+    private const string _content = "Symbol table (`struct nlist`)";
+
+    public override DataTable ToDataTable()
+    {
+        DataTable table = new()
+        {
+            TableName = "a.out Symbol Table"
+        };
+        table.Columns.AddRange(
+        [
+            new DataColumn("Name"),
+            new DataColumn("Type"),
+            new DataColumn("Ext"),
+            new DataColumn("Aux"),
+            new DataColumn("Desc"),
+            new DataColumn("Value"),
+            new DataColumn("Strx")
+        ]);
+
+        foreach (var symbol in symbols)
+        {
+            table.Rows.Add(
+                symbol.Name.Length == 0 ? "«no name»" : symbol.Name,
+                symbol.SectionKind,
+                symbol.IsExternal ? "global" : "local",
+                symbol.AuxKind,
+                $"0x{(ushort)symbol.Desc:X4}",
+                $"0x{symbol.Value:X8}",
+                $"0x{symbol.Strx:X8}");
+        }
+
+        return table;
+    }
+
+    public override string ToString()
+    {
+        var content = new StringBuilder();
+        content.AppendLine("Symbols map names to addresses (or more generally, strings to values).");
+        content.AppendLine("A symbol consists of a fixed-length `nlist` record in the symbol table");
+        content.AppendLine("and a variable-length name in the string table.");
+        content.AppendLine();
+        content.AppendLine($"- Symbol table entries: `{symbols.Count}`");
+
+        var externCount = symbols.Count(s => s.IsExternal);
+        content.AppendLine($"- External (global) symbols: `{externCount}`");
+        content.AppendLine($"- Local symbols: `{symbols.Count - externCount}`");
+        content.AppendLine($"- Debugger (stab) entries: `{symbols.Count(s => s.IsDebug)}`");
+
+        var undefined = symbols
+            .Where(s => !s.IsDebug && s.SectionKind == "UNDEF")
+            .Select(s => s.Name)
+            .Where(n => n.Length > 0)
+            .Distinct()
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+        if (undefined.Count > 0)
+        {
+            content.AppendLine();
+            content.AppendLine($"Undefined symbols (`{undefined.Count}`):");
+            content.AppendLine($"```text");
+            content.AppendLine(string.Join(", ", undefined));
+            content.AppendLine("```");
+        }
+
+        return content.ToString();
+    }
+
+    public override Region ToRegion()
+    {
+        return new Region(_content, ToString(), ToDataTable());
+    }
+}

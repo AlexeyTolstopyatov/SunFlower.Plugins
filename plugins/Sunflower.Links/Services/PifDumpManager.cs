@@ -8,27 +8,27 @@ public class PifDumpManager : UnsafeManager
     /// <summary>
     /// Main and necessary section in PIF binary
     /// </summary>
-    public MicrosoftPifEx MicrosoftPifEx { get; set; } = new();
+    public MicrosoftPifEx MicrosoftPifEx { get; set; }
 
     /// <summary>
     /// Windows 3x Standard Mode section
     /// </summary>
-    public Windows3x286 Windows3X286 { get; set; } = new();
+    public Windows3x286 Windows3X286 { get; set; }
 
     /// <summary>
     /// Windows 3x Extended Mode section
     /// </summary>
-    public Windows3x386 Windows3X386 { get; set; } = new();
+    public Windows3x386 Windows3X386 { get; set; }
 
     /// <summary>
     /// Windows 9x Virtual machine Manager section
     /// </summary>
-    public Windows4xVmm Windows4XVmm { get; set; } = new();
+    public Windows4xVmm Windows4XVmm { get; set; }
 
     /// <summary>
     /// Windows NT 3.1 Section /used by NT-VDM, I suggest/
     /// </summary>
-    public WindowsNt3 WindowsNt3 { get; set; } = new();
+    public WindowsNt3 WindowsNt3 { get; set; }
 
     public List<PifSectionHead> SectionHeads { get; set; } = [];
 
@@ -123,7 +123,6 @@ public class PifDumpManager : UnsafeManager
             case 0x8E:
                 WindowsNt3 = Fill<WindowsNt3>(reader);
                 break;
-
             // case "CONFIG SYS 4.0":
             // case "AUTOEXECBAT 4.0":
             //     // length of section [varies]

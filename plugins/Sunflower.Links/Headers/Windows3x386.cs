@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Sunflower.Links.Flags;
 
 namespace Sunflower.Links.Headers;
 
@@ -13,8 +14,8 @@ public struct Windows3x386
     public ushort EmsMemReqSizeK;
     public ushort XmsMemMaxSizeK;
     public ushort XmsMemReqSizeK;
-    public uint DosModeFlags; // I really don't know how to name it.
-    public ushort VideoFlags;
+    public Win386DosModeFlags DosModeFlags;
+    public Win386VideoModeFlags VideoFlags;
     public ushort Reserved1;
     public ushort ShortCutKeyCode;
     public ushort ShortCutKeyModifierFlag;

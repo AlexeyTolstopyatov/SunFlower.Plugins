@@ -119,4 +119,42 @@ public struct PeOptionalHeader32
     public UInt32 NumberOfRvaAndSizes;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
     public PeDirectory[] Directories;
+
+    public static PeOptionalHeader Into(ref PeOptionalHeader32 header)
+    {
+        return new PeOptionalHeader
+        {
+            Magic = header.Magic,
+            MajorLinkerVersion = header.MajorLinkerVersion,
+            MinorLinkerVersion = header.MinorLinkerVersion,
+            SizeOfCode = header.SizeOfCode,
+            SizeOfInitializedData = header.SizeOfInitializedData,
+            SizeOfUninitializedData = header.SizeOfUninitializedData,
+            AddressOfEntryPoint = header.AddressOfEntryPoint,
+            BaseOfCode = header.BaseOfCode,
+            BaseOfData = header.BaseOfData,
+            ImageBase = header.ImageBase,
+            SectionAlignment = header.SectionAlignment,
+            FileAlignment = header.FileAlignment,
+            MajorOperatingSystemVersion = header.MajorOperatingSystemVersion,
+            MinorOperatingSystemVersion = header.MinorOperatingSystemVersion,
+            MajorImageVersion = header.MajorImageVersion,
+            MinorImageVersion = header.MinorImageVersion,
+            MajorSubsystemVersion = header.MajorSubsystemVersion,
+            MinorSubsystemVersion = header.MinorSubsystemVersion,
+            Win32VersionValue = header.Win32VersionValue,
+            SizeOfImage = header.SizeOfImage,
+            SizeOfHeaders = header.SizeOfHeaders,
+            CheckSum = header.CheckSum,
+            Subsystem = header.Subsystem,
+            DllCharacteristics = header.DllCharacteristics,
+            SizeOfStackReserve = header.SizeOfStackReserve,
+            SizeOfStackCommit = header.SizeOfStackCommit,
+            SizeOfHeapReserve = header.SizeOfHeapReserve,
+            SizeOfHeapCommit = header.SizeOfHeapCommit,
+            LoaderFlags = header.LoaderFlags,
+            NumberOfRvaAndSizes = header.NumberOfRvaAndSizes,
+            Directories = header.Directories,
+        };
+    } 
 }

@@ -10,7 +10,7 @@ public class PeExportTableModel
 
 public class ExportFunction
 {
-    public String Name { get; set; } = String.Empty;
-    public UInt32 Ordinal { get; set; }
-    public UInt64 Address { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public uint Ordinal { get; set; }
+    public ulong Address { get; set; }
 }

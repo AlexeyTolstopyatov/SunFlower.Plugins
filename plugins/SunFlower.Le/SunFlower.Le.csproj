@@ -25,5 +25,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SunFlower.Ne\SunFlower.Ne.csproj" />
+  </ItemGroup>
 
 </Project>

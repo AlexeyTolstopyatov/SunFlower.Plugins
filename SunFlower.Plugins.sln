@@ -16,6 +16,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{6A421144-3
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SunFlower.Debug", "test\SunFlower.Debug\SunFlower.Debug.csproj", "{3795A2A7-7BD7-4B2B-86A8-791DC2A6EB76}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SunFlower.Unix", "plugins\SunFlower.Unix\SunFlower.Unix.csproj", "{F6FF1D47-632A-4268-BF77-E2E1E4534219}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,7 @@ Global
 		{18697C31-D67D-4EA8-8AE5-A9D13860DDB4} = {4BDF31BC-BAA3-42E2-8EF5-7ACE76E6007B}
 		{731EAC7B-7D01-4E9A-8901-652F2B40D401} = {4BDF31BC-BAA3-42E2-8EF5-7ACE76E6007B}
 		{3795A2A7-7BD7-4B2B-86A8-791DC2A6EB76} = {6A421144-3748-4BDF-A000-C58069AF63B8}
+		{F6FF1D47-632A-4268-BF77-E2E1E4534219} = {4BDF31BC-BAA3-42E2-8EF5-7ACE76E6007B}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{4508EA2B-B3DA-4349-AE9E-ABA4F4FFA52F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -54,5 +57,9 @@ Global
 		{3795A2A7-7BD7-4B2B-86A8-791DC2A6EB76}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3795A2A7-7BD7-4B2B-86A8-791DC2A6EB76}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3795A2A7-7BD7-4B2B-86A8-791DC2A6EB76}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F6FF1D47-632A-4268-BF77-E2E1E4534219}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F6FF1D47-632A-4268-BF77-E2E1E4534219}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F6FF1D47-632A-4268-BF77-E2E1E4534219}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F6FF1D47-632A-4268-BF77-E2E1E4534219}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

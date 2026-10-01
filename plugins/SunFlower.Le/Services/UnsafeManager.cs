@@ -9,7 +9,6 @@ namespace SunFlower.Le.Services;
 ///
 /// Licensed under MIT
 /// 
-
 public class UnsafeManager
 {
     /// <param name="reader"><see cref="BinaryReader"/> instance </param>

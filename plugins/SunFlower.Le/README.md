@@ -40,7 +40,8 @@ using LE/LX format specifications.
 | Near labels control flow     | Done          |
 | Far Jumps                    | Not supported | 
 | Far procedures control flow  | Not Supported |
-| Data objects                 | Not Supported |
+| Data objects                 | Done          |
+| ASCII strings in data        | Done          |
 | Applying of Fixups           | Done          |
 | Resolving Runtime Imports    | Done          |
 | Resolving Exports            | Done          |
@@ -63,6 +64,67 @@ existence of `0x66` byte prefix change `16 -> 32`-bit operand size.
 This idea uses in this .NET library to deconstruct Linear Executables.
 
 Read [my docs](https://github.com/AlexeyTolstopyatov/le-spec) to get more information about.
+
+### Code and strings hidden in the data objects
+
+An object which is not marked as executable is not just a plain data blob.
+The decoder analyses it in two ways and both of them are turned on by default:
+
+1. **Code references.** Every internal fixup made by the code which points into
+   a data object (a DDB procedure field, a callback, a jump table) is remembered
+   and becomes an entry point of that object.
+2. **Procedure prologues.** A procedure which nobody references directly leaves
+   its frame prologue as the only trace (`55 8B EC`, `55 89 E5`,
+   `8B FF 55 8B EC`, `C8 xx xx 00`). The whole object is scanned for those
+   prologues, so the code hidden in the data is disassembled too.
+
+The printable runs of a data object are reported as `DB` string literals and are
+shielded by `FlowerReport.SafeString` (see `SunFlower.Abstractions`), so the
+escaped bytes never break the listing:
+
+```asm
+; === Object#3 : .DATA (rw--) [16:16, USE_16] ===
+;     16-bit, Virtual Size: 8508 bytes
+; --- ASCII strings of Object#3 (11) ---
+        DB `popmsg.msg`                 ; 3:0x00C6 len=10 bytes
+        DB `Any changes will not be saved` ; 3:0x0143 len=29 bytes
+```
+
+The behaviour is controlled by the `LeDecoderService` / `LxDecoderService` properties:
+
+| Property                  | Default | Meaning                                                   |
+|---------------------------|---------|-----------------------------------------------------------|
+| `AnalyseDataObjects`      | `true`  | analyse the non-executable objects at all                  |
+| `DiscoverDataProcedures`  | `true`  | scan a data object for the procedure prologues             |
+| `DumpStrings`             | `true`  | dump the printable runs of a data object as `DB` literals  |
+| `MinStringLength`         | `4`     | minimal length of a printable run reported as a string     |
+
+The byte-level scan itself lives in `Services/ObjectContentScanner.cs`
+(`CollectAsciiStrings` / `FindProcedurePrologues`) and is shared by the LE and LX decoders.
+
+### Resolution of the address operands
+
+The immediate operands of the listing are resolved in two steps
+(`DescribePseudocode` of the LE and LX decoders):
+
+1. **A relocation record has the highest priority.** The record of the same
+   file position is looked up by the instruction address `++ 1` - the place the
+   relocated field keeps (the immediate of `PUSH`/`MOV`, the offset half of a
+   far pointer). The record keeps the exact target object and offset, so the
+   operand is replaced by the symbol it describes. This is what resolves
+   `MOV AX, 0x0000` / `PUSH 0x0000` into `MOV AX, DOSCALLS::@216` / `PUSH ::0004:0000`.
+2. **An exported name is the last resort and a guess.** The file keeps only a
+   bare offset inside the address, so the substitution is made only when it can
+   not be wrong:
+
+   - the instruction is a pointer transfer (`CALLF`/`JMPF`/`CALL`/`JMP`/`PUSH`/`POP`);
+   - the offset is not zero (every object begins at the zero offset, otherwise
+     every empty address would be substituted at once);
+   - the offset belongs to a single object (an ambiguous offset is skipped).
+
+The operand is replaced inside the instruction body only, so the debug
+annotation behind the semicolon (`; 1:0x0000 68 00 00`) is never corrupted by the
+same hexadecimal numbers.
 
 ### VxD Model
 

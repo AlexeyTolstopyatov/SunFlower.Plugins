@@ -15,9 +15,10 @@ public class LePagesManager
             var entry = new Headers.Le.ObjectPage
             {
                 PageIndex = reader.ReadBytes(3),
-                Flags = reader.ReadByte()
-            }; // суммарно это ровно 32 бита. Есть ли смысл мне выравниваться?
-            //reader.ReadUInt32(); 
+                Flags = (Headers.Le.ObjectPage.PageFlags)reader.ReadByte()
+            }; 
+            // Exactly 32 bits. No more alignments 
+            // reader.ReadUInt32(); 
             
             ToModel(entry);
         }
@@ -26,27 +27,6 @@ public class LePagesManager
     private void ToModel(Headers.Le.ObjectPage page)
     {
         List<string> flags = [];
-        
-        switch (page.Flags & (byte)Headers.Le.ObjectPage.PageFlags.TypeMask)
-        {
-            case (byte)Headers.Le.ObjectPage.PageFlags.Legal:
-                flags.Add("LEGAL");
-                break;
-            case (byte)Headers.Le.ObjectPage.PageFlags.Iterated:
-                flags.Add("ITERATED");
-                break;
-            case (byte)Headers.Le.ObjectPage.PageFlags.Invalid:
-                flags.Add("INVALID");
-                break;
-            case (byte)Headers.Le.ObjectPage.PageFlags.ZeroFilled:
-                flags.Add("BSS");
-                break;
-        }
-    
-        if ((page.Flags & (byte)Headers.Le.ObjectPage.PageFlags.LastPageInFile) != 0)
-        {
-            flags.Add("LAST");
-        }
         
         Pages.Add(new ObjectPage(page, flags));
     }

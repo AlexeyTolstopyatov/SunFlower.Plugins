@@ -67,7 +67,7 @@ public class NeImportNamesManager(BinaryReader reader, ImportOffsets offsets, Li
             module.Value.Sort((a, b) =>
             {
                 if (a.Ordinal != "@0" && b.Ordinal != "@0")
-                    return String.Compare(a.Ordinal, b.Ordinal, StringComparison.Ordinal);
+                    return string.Compare(a.Ordinal, b.Ordinal, StringComparison.Ordinal);
                 if (a.Ordinal != "@0") return -1;
                 if (b.Ordinal != "@0") return 1;
                 return string.Compare(a.Procedure, b.Procedure, StringComparison.Ordinal);

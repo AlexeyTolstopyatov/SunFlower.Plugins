@@ -16,7 +16,7 @@ public class PeClrManager(FileSectionsInfo info, string path) : DirectoryManager
     /// <summary>
     /// Entry Point
     /// </summary>
-    public void Initialize()
+    public void Dump()
     {
         if (!IsDirectoryExists(_info.Directories[14]))
             return;

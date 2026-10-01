@@ -7,7 +7,7 @@ public struct ObjectPage
 {
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
     public byte[] PageIndex;    // 16 + 8 = 24
-    public byte Flags;
+    public PageFlags Flags;
     [Flags]
     public enum PageFlags : byte
     {

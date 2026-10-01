@@ -10,15 +10,15 @@ namespace SunFlower.Pe.Models;
 public class FileSectionsInfo
 {
     public bool Is64Bit { get; set; }
-    public UInt32 NumberOfSections { get; set; }
-    public UInt32 NumberOfRva { get; set; }
+    public uint NumberOfSections { get; set; }
+    public uint NumberOfRva { get; set; }
     
-    public UInt32 SectionAlignment { get; set; }
-    public UInt32 FileAlignment { get; set; }
+    public uint SectionAlignment { get; set; }
+    public uint FileAlignment { get; set; }
     
-    public UInt32 ImageBase { get; set; }
-    public UInt32 BaseOfCode { get; set; }
-    public UInt32 BaseOfData { get; set; }
+    public uint ImageBase { get; set; }
+    public uint BaseOfCode { get; set; }
+    public uint BaseOfData { get; set; }
     
     public PeSection[] Sections { get; set; } = [];
     public PeDirectory[] Directories { get; set; } = [];

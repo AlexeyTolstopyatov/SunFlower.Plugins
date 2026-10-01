@@ -9,14 +9,14 @@ public class PeImportTableModel
 
 public class ImportModule
 {
-    public string DllName { get; set; } = String.Empty;
-    public List<ImportedFunction> Functions { get; set; } = [];
+    public List<ImportedFunction> Functions { get; init; } = [];
 }
 
 public class ImportedFunction
 {
-    public String Name { get; set; } = string.Empty;
-    public UInt32 Ordinal { get; set; } // Changed u64 -> u32
-    public UInt16 Hint { get; set; }
-    public UInt64 Address { get; set; }
+    public string Module { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public uint Ordinal { get; set; } // Changed u64 -> u32
+    public ushort Hint { get; set; }
+    public ulong Address { get; set; }
 }

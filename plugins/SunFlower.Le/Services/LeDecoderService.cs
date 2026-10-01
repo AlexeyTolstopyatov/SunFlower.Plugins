@@ -4,6 +4,8 @@
 // Be ready to see it. This is a real shit u know... 
 // But it FINALLY WORKS fine and IDA 8.3 tells this the relocation matches right.
 // 
+
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -32,12 +34,57 @@ public partial class LeDecoderService
     /// <summary>
     /// Import Procedure Names from the import procedure table. Key is a NameOffset 
     /// </summary>
-    private readonly Dictionary<uint, string> _importNameByOffset = [];
+    private ImportRecord[] _importRecords = [];
 
     private List<string> _results = [];
     private readonly int _mainObj;
     private readonly uint _mainEip;
     private readonly int _pageSize;
+
+    /// <summary>
+    /// Maximum count of the analysis passes per object. Every pass disassembles
+    /// the object again, but the far addresses (CALLF/JMPF immediates) found
+    /// during the previous pass are added to the entry points, so the code
+    /// behind the big addresses is analysed as well.
+    /// </summary>
+    private const int MaxAnalysisPasses = 8;
+
+    /// <summary>
+    /// Entry points which the code references through the internal fixups.
+    /// Key is a 1-based object number, value is a set of offsets inside it.
+    /// </summary>
+    private readonly Dictionary<int, SortedSet<int>> _fixupTargetsByObject = [];
+
+    /// <summary>
+    /// Analyse the objects which are not marked as executable. A data object may
+    /// keep procedures too: drivers place their DDB and the procedure pointers
+    /// into .DATA, applications keep callbacks there, so every location which the
+    /// code references through the internal fixups is analysed as well.
+    /// Turn it off to keep such objects as plain data.
+    /// </summary>
+    public bool AnalyseDataObjects { get; set; } = true;
+
+    /// <summary>
+    /// Dump the printable runs of a data object as DB string literals. The raw
+    /// bytes are shielded by <see cref="SunFlower.Abstractions.FlowerReport.SafeString"/>
+    /// before they land in the listing.
+    /// Turn it off to skip the string scan.
+    /// </summary>
+    public bool DumpStrings { get; set; } = true;
+
+    /// <summary>
+    /// Minimal length of a printable run reported as a string.
+    /// </summary>
+    public int MinStringLength { get; set; } = DataObjectExtension.DefaultMinStringLength;
+
+    /// <summary>
+    /// A data object may keep its procedures without any reference from the code
+    /// (the OS installs them through a table, the runtime builds the pointer).
+    /// Such a procedure is spotted by its frame prologue and becomes an entry
+    /// point, so the code hidden in the data is disassembled too.
+    /// Turn it off to analyse only the locations referenced by the fixups.
+    /// </summary>
+    public bool DiscoverDataProcedures { get; set; } = true;
 
     public LeDecoderService(string filePath, LeDumpManager dump)
     {
@@ -64,15 +111,27 @@ public partial class LeDecoderService
             $"; Imports: {_dump.ImportRecords.Length}",
             ";"
         ]);
-
+        
+        _results.AddRange(ExternalEntryPointsExtension.AddSignatures(_dump.EntryBundles
+            .SelectMany(x => x.Entries)
+            .ToArray()));
+        
         BuildExportMap();
-        BuildImportNameMap();
+
+        _importRecords = _dump.ImportRecords;
+        
+        //BuildImportNameMap();
         BuildFixupSymbolMap();
         
         for (var i = 0; i < _dump.Objects.Length; i++)
         {
             var obj = _dump.Objects[i];
-            if (!obj.Execute || obj.VirtualSegmentSize == 0) continue;
+            if (obj.VirtualSegmentSize == 0) continue;
+
+            // Data objects are analysed too: they may keep procedures
+            // (procedure pointers of the drivers DDB, callbacks, jump tables)
+            if (!obj.Execute && !AnalyseDataObjects) continue;
+
             TranslateObject(i + 1, obj);
         }
 
@@ -81,61 +140,201 @@ public partial class LeDecoderService
         return _results.ToArray();
     }
     /// <summary>
-    /// Matches and replaces unknown far/near calls using relocation records
-    /// and known exporting procedures
+    /// Resolves the immediate operands of the listing using the relocation
+    /// records (the highest priority) and the exported procedure names (the last
+    /// resort). Every produced line is visited, so a call, a jump, a pushed
+    /// pointer and a moved address are resolved with the same rules.
     /// </summary>
     private void DescribePseudocode()
     {
-        // Firstly resolve fixup records because they have a high priority 
-        // Export characters might have a references by the same file positions but
-        // resolving of them is very hard
         var lines = _results.SelectMany(s => s.Split('\n')).ToArray();
-        var modified = new List<string>();
+        var modified = new List<string>(lines.Length);
+
         foreach (var resultLine in lines)
-        {
-            var line = resultLine.TrimEnd('\r');
-
-            var m = ControlFlowPattern().Match(line);
-            if (!m.Success)
-            {
-                modified.Add(line);
-                continue;
-            }
-            // match relocs by file address: JMP 0x0002:0x0010 ; 3:0x1684 9A 10 00 02 00
-            // Instruction address must be the same with a key of fixup record
-            // The far address by given instruction ++offset replaces by the fixup record value (bad ptr => internal reference)
-            var instructionObject = Convert.ToInt32(m.Groups[4].Value);
-            var instructionOffset = Convert.ToInt32(m.Groups[5].Value, 16);
-            var targetObject = Convert.ToInt16(m.Groups[1].Value, 16);
-            var targetOffset = Convert.ToInt32(m.Groups[2].Value, 16);
-            if (_fixupSymbolAt.TryGetValue((instructionObject, instructionOffset + 1), out var symbol))
-            {
-                line = line.Replace($"0x{targetObject:X4}:0x{targetOffset:X4}", $"{symbol.symbol}");
-            }
-
-            // Then if address still exists -> trying to replace it by exporting address
-            m = ControlFlowPattern().Match(line); // again
-
-            if (!m.Success)
-            {
-                modified.Add(line);
-                continue;
-            }
-            
-            targetObject = Convert.ToInt16(m.Groups[1].Value, 16);
-            targetOffset = Convert.ToInt32(m.Groups[2].Value, 16);
-
-            var export = _exportAt.FirstOrDefault(x => x.Key.off == targetOffset).Value;
-            if (export is not null)
-            {
-                line = line.Replace($"0x{targetObject:X4}:0x{targetOffset:X4}", $"::{export}");
-            }
-
-            modified.Add(line);
-        }
+            modified.Add(DescribeInstruction(resultLine.TrimEnd('\r')));
 
         _results = modified;
     }
+
+    /// <summary>
+    /// Resolves the address immediate of a single instruction line:
+    ///     1. the relocation record of the same file position resolves the
+    ///        operand exactly (the record keeps the target object and offset);
+    ///     2. an exported name is a guess only: the file keeps a bare offset
+    ///        inside the address, so the substitution is made when it can not
+    ///        be wrong - the offset is not empty and belongs to a single object.
+    /// </summary>
+    private string DescribeInstruction(string line)
+    {
+        var match = InstructionPattern().Match(line);
+
+        if (!match.Success)
+            return line;
+
+        var instructionObject = Convert.ToInt32(match.Groups["instrObject"].Value);
+        var instructionOffset = Convert.ToInt32(match.Groups["instrOffset"].Value, 16);
+        var address = match.Groups["addr"].Value;
+
+        // The instruction bytes are kept in the debug annotation, so the operand
+        // and the relocation record are bound by the value they share
+        var instructionBytes = ParseInstructionBytes(line, match.Groups["instr"].Index + match.Groups["instr"].Length);
+        var addressBytes = ParseOperandBytes(address);
+
+        var resolved = ApplyFixup(line, instructionObject, instructionOffset, address, addressBytes, instructionBytes);
+
+        if (resolved is not null)
+            return resolved;
+
+        // The exported name is substituted for the pointer transfers only: a data
+        // immediate may coincide with an entry point offset just by accident
+        if (!IsPointerTransfer(match.Groups["mnemonic"].Value))
+            return line;
+
+        var targetOffset = FarTargetOffset(match);
+
+        // An empty address is not a target: every object starts at the zero
+        // offset, so the guess would be random. A non-zero offset which belongs
+        // to several objects is ambiguous as well
+        if (targetOffset <= 0)
+            return line;
+
+        var exports = _exportAt.Where(x => x.Key.off == targetOffset).ToArray();
+
+        return exports.Length == 1
+            ? ReplaceOperand(line, address, $"::{exports[0].Value}")
+            : line;
+    }
+
+    /// <summary>
+    /// Replaces the first occurrence of the address token inside the operand part
+    /// of the instruction. The debug annotation behind the semicolon keeps the
+    /// same hexadecimal numbers as the operands, so it must not be corrupted.
+    /// </summary>
+    private static string ReplaceOperand(string line, string token, string replacement)
+    {
+        var separator = line.IndexOf(';');
+        var body = separator >= 0 ? line[..separator] : line;
+        var annotation = separator >= 0 ? line[separator..] : string.Empty;
+
+        var position = body.IndexOf(token, StringComparison.Ordinal);
+
+        if (position < 0)
+            return line;
+
+        return body[..position] + replacement + body[(position + token.Length)..] + annotation;
+    }
+
+    /// <summary>
+    /// Applies a relocation record of the instruction. The record keeps the exact
+    /// object-relative offset of the field it relocates, so the whole instruction
+    /// range is scanned - not the immediate position only, because a MOV with a
+    /// memory operand keeps its immediate behind the ModRM/displacement bytes too.
+    /// The record is bound to the operand only when the bytes it points at form
+    /// the same value the operand is printed with, so a wrong substitution is not
+    /// possible.
+    /// </summary>
+    private string? ApplyFixup(
+        string line,
+        int instructionObject,
+        int instructionOffset,
+        string address,
+        byte[] addressBytes,
+        byte[] instructionBytes)
+    {
+        if (addressBytes.Length == 0 || addressBytes.Length > instructionBytes.Length)
+            return null;
+
+        for (var delta = 0; delta + addressBytes.Length <= instructionBytes.Length; delta++)
+        {
+            if (!_fixupSymbolAt.TryGetValue((instructionObject, instructionOffset + delta), out var fixup))
+                continue;
+
+            if (instructionBytes.AsSpan(delta, addressBytes.Length).SequenceEqual(addressBytes))
+                return ReplaceOperand(line, address, fixup.symbol);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The raw bytes of a hexadecimal operand as the file keeps them. A 16:16 far
+    /// pointer is printed as <c>0xSEG:0xOFF</c> while the offset half is stored
+    /// first, so both halves are joined back in that order.
+    /// </summary>
+    private static byte[] ParseOperandBytes(string address)
+    {
+        var halves = address.Split(':', StringSplitOptions.RemoveEmptyEntries);
+
+        return halves.Length == 2
+            ? [.. ParseLittleEndianHex(halves[1]), .. ParseLittleEndianHex(halves[0])]
+            : ParseLittleEndianHex(address);
+    }
+
+    /// <summary>
+    /// Splits the printed value into the bytes the file keeps:
+    ///     <c>0x1234</c> -> <c>0x34, 0x12</c>
+    /// </summary>
+    private static byte[] ParseLittleEndianHex(string token)
+    {
+        var digits = token.StartsWith("0x", StringComparison.Ordinal) ? token[2..] : token;
+
+        if (digits.Length == 0 || (digits.Length & 1) != 0)
+            return [];
+
+        var result = new byte[digits.Length / 2];
+
+        for (var i = 0; i < result.Length; i++)
+        {
+            if (!byte.TryParse(digits.AsSpan(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+                return [];
+
+            result[i] = value;
+        }
+
+        Array.Reverse(result);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reads the instruction bytes out of the debug annotation:
+    ///     <c>; 1:0x0017 B8 34 12</c>
+    /// The bytes are the space separated hexadecimal pairs behind the address of
+    /// the instruction, up to the first token which is not a pair.
+    /// </summary>
+    private static byte[] ParseInstructionBytes(string line, int start)
+    {
+        var result = new List<byte>();
+        var index = start;
+
+        while (index < line.Length && line[index] == ' ')
+            index++;
+
+        while (index + 2 <= line.Length && IsHexPair(line, index))
+        {
+            // the pair is a byte only when what follows separates it from the rest
+            if (index + 2 < line.Length && line[index + 2] != ' ')
+                break;
+
+            result.Add(Convert.ToByte(line.Substring(index, 2), 16));
+            index += 2;
+
+            while (index < line.Length && line[index] == ' ')
+                index++;
+        }
+
+        return result.ToArray();
+    }
+
+    private static bool IsHexPair(string line, int index) =>
+        char.IsAsciiHexDigit(line[index]) && char.IsAsciiHexDigit(line[index + 1]);
+
+    /// <summary>
+    /// Tells if the instruction loads or transfers a pointer (a call, a jump or a
+    /// stack push/pop) so its operand might be an exported address.
+    /// </summary>
+    private static bool IsPointerTransfer(string mnemonic) =>
+        mnemonic is "CALLF" or "JMPF" or "CALL" or "JMP" or "POP" or "PUSH";
 
     private void BuildExportMap()
     {
@@ -152,39 +351,29 @@ public partial class LeDecoderService
 
             foreach (var entry in bundle.Entries)
             {
-                if (entry is EntryUnused)
+                if (entry is EntryUnused or EntryForwarder)
                 {
                     ordinal++;
                     continue;
                 }
 
-                var name = FindExportNameByOrdinal(ordinal);
-
-                if (string.IsNullOrEmpty(name))
+                (int offset, string name) pair = entry switch
                 {
-                    ordinal++;
-                    continue;
-                }
-
-                var offset = entry switch
-                {
-                    Entry16Bit e16 => e16.Offset,
-                    Entry32Bit e32 => (int)e32.Offset,
-                    Entry286CallGate eg => eg.Offset,
-                    _ => -1
+                    Entry16Bit e16 => (e16.Offset, e16.EntryName),
+                    Entry32Bit e32 => ((int)e32.Offset, e32.EntryName),
+                    Entry286CallGate eg => (eg.Offset, eg.EntryName),
+                    _ => (-1, "<unbelievable entry point>")
                 };
-
-                if (offset >= 0 && objNum > 0)
-                    _exportAt[(objNum, offset)] = FailSafe(name);
+                if (string.IsNullOrEmpty(pair.name))
+                    pair.name = $"_@{entry.Ordinal}";
+                
+                if (pair.offset >= 0 && objNum > 0)
+                    _exportAt[(objNum, pair.offset)] = FailSafe(pair.name);
 
                 ordinal++;
             }
         }
     }
-
-    private string? FindExportNameByOrdinal(int ordinal)
-        => _dump.ResidentNames.FirstOrDefault(n => n.Ordinal == ordinal)?.String
-           ?? _dump.NonResidentNames.FirstOrDefault(n => n.Ordinal == ordinal)?.String;
 
     /// <summary>
     /// Remove unexpected characters from the string
@@ -202,26 +391,6 @@ public partial class LeDecoderService
 
         var result = sb.ToString().Trim('_');
         return string.IsNullOrEmpty(result) ? "sym" : result;
-    }
-
-    private void BuildImportNameMap()
-    {
-        var baseOffset = _dump.MzHeader.e_lfanew + _dump.LeHeader.e32_impproc;
-        using var fs = File.OpenRead(_filePath);
-        using var reader = new BinaryReader(fs);
-        reader.BaseStream.Seek(baseOffset, SeekOrigin.Begin);
-
-        while (true)
-        {
-            var len = reader.ReadByte();
-            if (len == 0)
-                break;
-            var offset = (uint)(reader.BaseStream.Position - baseOffset - 1);
-            var nameBytes = reader.ReadBytes(len);
-            var name = Encoding.ASCII.GetString(nameBytes);
-
-            _importNameByOffset[offset] = name;
-        }
     }
 
     private void BuildFixupSymbolMap()
@@ -264,6 +433,8 @@ public partial class LeDecoderService
             var offsets = fixup.SourceType.HasSourceList ? fixup.SourceOffsetList : [fixup.SourceOffset];
             var symbol = ResolveFixupSymbol(fixup);
 
+            RememberCodeReference(objNum, fixup);
+
             if (symbol != null)
             {
                 foreach (var srcOff in offsets)
@@ -280,6 +451,54 @@ public partial class LeDecoderService
             AdvancePosition(ref curOffset, fixup);
         }
     }
+
+    /// <summary>
+    /// A data object may keep procedures too: drivers place their DDB and the
+    /// procedure pointers into .DATA, applications keep callbacks there. So every
+    /// internal fixup which is made by the code and points into an object is
+    /// remembered as a candidate entry point of that object.
+    /// </summary>
+    private void RememberCodeReference(int sourceObject, LeFixupRecord fixup)
+    {
+        if (fixup.TargetData is not LeFixupTargetInternal target)
+            return;
+
+        if (sourceObject < 1 || sourceObject > _dump.Objects.Length)
+            return;
+
+        if (!_dump.Objects[sourceObject - 1].Execute)
+            return;
+
+        if (!IsCodePointerAddressType(fixup.SourceType.AddressType))
+            return;
+
+        var targetObject = target.ObjectNumber;
+        var targetOffset = (long)target.TargetOffset + (fixup.AdditiveValue ?? 0);
+
+        if (targetObject < 1 || targetObject > _dump.Objects.Length)
+            return;
+
+        if (targetOffset <= 0 || targetOffset > int.MaxValue)
+            return;
+
+        if (!_fixupTargetsByObject.TryGetValue(targetObject, out var offsets))
+        {
+            offsets = [];
+            _fixupTargetsByObject[targetObject] = offsets;
+        }
+
+        offsets.Add((int)targetOffset);
+    }
+
+    /// <summary>
+    /// Tells if the fixup address type stores a full far pointer inside the object
+    /// (16:32/16:48), i.e. the relocated source may be a procedure pointer of a
+    /// table or of a structure (DDB, callbacks). A bare 16/32-bit offset is kept
+    /// out: it is a data reference in most of the cases.
+    /// </summary>
+    private static bool IsCodePointerAddressType(LeFixupAddressType type) =>
+        type is LeFixupAddressType.Far32
+             or LeFixupAddressType.Far48;
 
     private static void AdvancePosition(ref uint pos, LeFixupRecord fixup)
     {
@@ -358,7 +577,7 @@ public partial class LeDecoderService
 
     private string GetProcedureName(uint nameOffset)
     {
-        return _importNameByOffset.TryGetValue(nameOffset, out var name) ? name : string.Empty;
+        return _importRecords.First(x => x.Offset == nameOffset).Name;
     }
 
     private byte[]? BuildObjectBytesByPageIndex(Object obj)
@@ -384,16 +603,14 @@ public partial class LeDecoderService
             var modelPage = _dump.Pages[startLogical + i];
             var page = modelPage.Page;
             var rawFlags = page.Flags;
-            var pageType = (byte)(rawFlags & 0x03);
+            var pageType = (byte)((byte)rawFlags & 0x03);
 
             if (pageType is not (0 or 3))
                 continue;
 
             var fileOffset = _dump.LeHeader.e32_datapage + (page.LongPageIndex - 1) * _pageSize;
-
-            Console.WriteLine($" -> Located 0x{fileOffset:X}");
-
-            var isLastPage = (rawFlags & 0x80) != 0;
+            
+            var isLastPage = ((byte)rawFlags & 0x80) != 0;
 
             var bytesToRead = isLastPage ? (int)_dump.LeHeader.e32_lastpagesize : _pageSize;
             if (bytesToRead <= 0) bytesToRead = _pageSize;
@@ -410,7 +627,7 @@ public partial class LeDecoderService
             }
             catch (Exception e)
             {
-                Console.WriteLine($"[{nameof(BuildObjectBytesByPageIndex)}]: {e}");
+                Console.WriteLine($"[#{nameof(BuildObjectBytesByPageIndex)}]: {e}");
             }
         }
 
@@ -419,17 +636,16 @@ public partial class LeDecoderService
 
     private void TranslateObject(int objectNumber, Object obj)
     {
-        var modeLabel = (obj.ObjectFlagsMask & 0x2000) != 0 ? "32-bit" : "16-bit";
+        var is32Bit = (obj.ObjectFlagsMask & 0x2000) != 0;
+        var modeLabel = is32Bit ? "32-bit" : "16-bit";
         var suggestedName = Object.GetSuggestedNameByPermissions(obj);
+        var isExecutable = obj.Execute;
 
-        _results.Add("");
-        _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
-        _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes");
-
-        var objBytes = BuildObjectBytesByPageIndex(obj); 
+        var objBytes = BuildObjectBytesByPageIndex(obj);
         if (objBytes == null || objBytes.Length == 0) return;
 
-        var entryPoints = new List<int>();
+        var entryPoints = new SortedSet<int>();
+        
         if (objectNumber == _mainObj)
             entryPoints.Add((int)_mainEip);
 
@@ -443,44 +659,178 @@ public partial class LeDecoderService
                     Entry16Bit e16 => e16.Offset,
                     Entry32Bit e32 => (int)e32.Offset,
                     Entry286CallGate eg => eg.Offset,
-                    _ => -1
+                    _ => -1 // unreachable address I suppose
                 };
                 if (off >= 0 && off < objBytes.Length)
                     entryPoints.Add(off);
             }
         }
 
+        // A data object may keep procedures too, so the internal fixup targets
+        // referenced by the code (callbacks, DDB procedure fields, jump tables)
+        // are used as entry points of such an object
+        if (!isExecutable && _fixupTargetsByObject.TryGetValue(objectNumber, out var codeReferences))
+        {
+            foreach (var reference in codeReferences.Where(r => r >= 0 && r < objBytes.Length))
+                entryPoints.Add(reference);
+        }
+
+        // The procedure which nobody references directly (the OS installs it
+        // through a table, the runtime builds the pointer) leaves the frame
+        // prologue as the only trace. The whole object is scanned for it, so the
+        // code hidden in the data becomes an entry point as well
+        var prologues = 0;
+        if (!isExecutable && DiscoverDataProcedures)
+        {
+            foreach (var prologue in DataObjectExtension.FindProcedurePrologues(objBytes))
+            {
+                if (entryPoints.Add(prologue))
+                    prologues++;
+            }
+        }
+
+        if (entryPoints.Count == 0 && !isExecutable)
+        {
+            _results.Add("");
+            _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
+            _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes");
+            _results.Add(";     No code references into this object, kept as data");
+            DumpObjectStrings(objectNumber, objBytes);
+            return;
+        }
+
         if (entryPoints.Count == 0) entryPoints.Add(0);
 
-        string disassembly;
+        var followedTargets = 0;
+        string annotation;
+
         try
         {
-            disassembly = (obj.ObjectFlagsMask & 0x2000) != 0
-                ? I80386Decoder.decodeRecursive("", objBytes, [.. entryPoints.Order()])
-                : I80286Decoder.decodeRecursive("", objBytes, [.. entryPoints.Order()]);
+            annotation = string.Empty;
 
-            var annotated = DescribeFragment(disassembly, objectNumber);
-            _results.Add(annotated);
+            for (var pass = 0; pass < MaxAnalysisPasses; pass++)
+            {
+                var disassembly = is32Bit
+                    ? I80386Decoder.decodeRecursive("", objBytes, [.. entryPoints])
+                    : I80286Decoder.decodeRecursive("", objBytes, [.. entryPoints]);
+
+                var farTargets = new List<int>();
+                annotation = DescribeFragment(disassembly, objectNumber, farTargets);
+
+                // Far addresses which point inside the object become the new
+                // entry points, so procedures behind the big addresses are
+                // analyzed too. The loop stops when nothing new is discovered
+                var discovered = farTargets
+                    .Count(t => t > 0 && t < objBytes.Length && entryPoints.Add(t));
+
+                followedTargets += discovered;
+
+                if (discovered == 0)
+                    break;
+            }
         }
         catch (Exception ex)
         {
-            disassembly = ex.Message;
-            _results.Add($"; Fatal: {ex.Message}");
+            annotation = $"; Fatal: {ex.Message}";
+        }
+
+        _results.Add("");
+        _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
+        _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes, Entry points: {entryPoints.Count}");
+
+        if (!isExecutable)
+            _results.Add(";     $Feature is UNDER CONSTRUCTION$");
+
+        if (prologues > 0)
+            _results.Add($";     Procedure prologues found: {prologues}");
+
+        if (followedTargets > 0)
+            _results.Add($";     Far addresses followed: {followedTargets} more entry point(s)");
+
+        _results.Add(annotation);
+
+        //if (!isExecutable) INTERESTING
+        DumpObjectStrings(objectNumber, objBytes);
+    }
+
+    /// <summary>
+    /// Reports the printable runs of a data object as DB pseudo-instructions.
+    /// The strings of the executable objects are not scanned: the code bytes
+    /// give too many false positives, and the code is already disassembled.
+    /// </summary>
+    private void DumpObjectStrings(int objectNumber, byte[] objBytes)
+    {
+        if (!DumpStrings) 
+            return;
+
+        var strings = DataObjectExtension.CollectAsciiStrings(objBytes, MinStringLength);
+        if (strings.Count == 0) return;
+
+        _results.Add("");
+        _results.Add($"; --- ASCII strings of Object#{objectNumber} ({strings.Count}) ---");
+
+        foreach (var (offset, text) in strings)
+        {
+            var literal = "DB " + SunFlower.Abstractions.FlowerReport.SafeString(text);
+            _results.Add($"\t{literal, -40} ; {objectNumber}:0x{offset:X4} len={text.Length} bytes");
         }
     }
 
-    private string DescribeFragment(string disassembly, int objectNumber)
+    private string DescribeFragment(string disassembly, int objectNumber, ICollection<int> farTargets)
     {
         var lines = disassembly.Split('\n');
         var resultLines = new List<string>();
-        const int maxInstLength = 15;
+        const int maxInstLength = 4;
 
+        // The decoder marks every procedure/entry point with an anonymous label
+        // (p_0xOFFSET) and, sometimes, with a banner comment above it. When the real
+        // symbol of that location is known, the label and its banner are replaced
+        // with the symbol instead of being duplicated
+        var headerStart = -1;
+        var blockStart = -1;
+        var labelIndex = -1;
+        var labelOffset = -1;
+        
         foreach (var rawLine in lines)
         {
             var line = rawLine.TrimEnd('\r');
 
-            //if (Regex.IsMatch(line, @"\s+p_0x[0-9A-Fa-f]+:")) continue;
-            //if (Regex.IsMatch(line, @"\s+__0x[0-9A-Fa-f]+:")) continue;
+            var labelMatch = DecoderLabelPattern.Match(line);
+            if (labelMatch.Success)
+            {
+                blockStart = headerStart >= 0 ? headerStart : resultLines.Count;
+                labelIndex = resultLines.Count;
+                labelOffset = Convert.ToInt32(labelMatch.Groups["offset"].Value, 16);
+                headerStart = -1;
+                resultLines.Add(line);
+                continue;
+            }
+
+            // "; Procedure at 0x... instruction offset" banner which belongs to the
+            // label below it
+            if (DecoderProcedureHeaderPattern.IsMatch(line))
+            {
+                if (headerStart < 0) headerStart = resultLines.Count;
+                resultLines.Add(line);
+                continue;
+            }
+
+            // Any other line breaks the banner, the label which follows has none
+            headerStart = -1;
+
+            // Linear Executable keeps a far pointer as one 32-bit value. The Intel
+            // decoder prints those 4 bytes as a 16:16 segment:offset pair (Ap/Mp
+            // operand) - both halves are joined back here, because in LE/LX such an
+            // address is not always a far one. Every joined value becomes a candidate
+            // entry point for the next analysis pass, so the jumps and the calls
+            // with a big address are analysed too
+            line = FarAddressPattern.Replace(line, match =>
+            {
+                var flat = ((uint)Convert.ToInt32(match.Groups["seg"].Value, 16) << 16)
+                           | (uint)Convert.ToInt32(match.Groups["off"].Value, 16);
+                farTargets.Add(unchecked((int)flat));
+                return $"{match.Groups["mnemonic"].Value} 0x{flat:X8}";
+            });
 
             var offMatch = Regex.Match(line, @";\s+0x([0-9A-Fa-f]+)\s");
             if (!offMatch.Success)
@@ -493,11 +843,17 @@ public partial class LeDecoderService
 
             if (_exportAt.TryGetValue((objectNumber, localOff), out var expName))
             {
-                resultLines.Add($"{expName}:");
+                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff, $"{expName}:");
             }
             else if (objectNumber == _mainObj && localOff == _mainEip)
             {
-                resultLines.Add("main:");
+                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff, "main:");
+            }
+            else
+            {
+                blockStart = -1;
+                labelIndex = -1;
+                labelOffset = -1;
             }
 
             line = line.Replace($"; 0x{localOff:X4}", $"; {objectNumber}:0x{localOff:X4}");
@@ -514,8 +870,8 @@ public partial class LeDecoderService
 
             if (fixupsInInst.Count > 0)
             {
-                var comments = "possible references: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}+0x{f.offset:X}"));
-                line += $"{comments}";
+                var comments = "xref: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}+0x{f.offset:X}"));
+                line = $"{line.TrimEnd()} {comments}";
             }
 
             resultLines.Add(line);
@@ -524,6 +880,93 @@ public partial class LeDecoderService
         return string.Join("\n", resultLines);
     }
 
-    [GeneratedRegex(@"[CALLF|JMP|JMPF]\s+0x([0-9A-Fa-f]+):0x([0-9A-Fa-f]+)\s+;\s+(([0-9]+):0x([0-9A-Fa-f]+))")]
-    private static partial Regex ControlFlowPattern();
+    /// <summary>
+    /// Matches a direct far control flow instruction with the address as the Intel
+    /// decoder prints it - a 16:16 segment:offset pair of the Ap/Mp operand:
+    ///     CALLF 0xD02E:0x0174
+    /// </summary>
+    private static readonly Regex FarAddressPattern = new(
+        @"(?<mnemonic>CALLF|JMPF|CALL|JMP|PUSH|POP)\s+0x(?<seg>[0-9A-Fa-f]{1,4}):0x(?<off>[0-9A-Fa-f]{1,4})",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Matches the label which the Intel decoder puts in front of a procedure
+    /// (a CALL target) or of an entry point:
+    ///     p_0x0100:
+    ///     __0x0200:
+    /// Such a label is anonymous, so it is removed as soon as the real symbol
+    /// of the procedure is known (see <see cref="AddProcedureLabel"/>)
+    /// </summary>
+    private static readonly Regex DecoderLabelPattern = new(
+        @"^[ \t]*(?:p_0x|__0x)(?<offset>[0-9A-Fa-f]+):[ \t]*$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Matches the header which the decoder prints above a procedure/entry point
+    /// label. Such a comment belongs to the label below it only, so it is dropped
+    /// together with the anonymous label it introduces:
+    ///     ;
+    ///     ; Procedure at 0x0100 instruction offset
+    ///     ;
+    ///     p_0x0100:
+    /// </summary>
+    private static readonly Regex DecoderProcedureHeaderPattern = new(
+        @"^[ \t]*;[ \t]*(?:$|Entry point at 0x[0-9A-Fa-f]+|Procedure at 0x[0-9A-Fa-f]+(?: instruction offset)?)",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Puts the resolved name of the procedure in front of the instruction and
+    /// drops the anonymous label of the decoder when it points at the very same offset
+    /// </summary>
+    private static void AddProcedureLabel(
+        List<string> resultLines,
+        ref int blockStart,
+        ref int labelIndex,
+        ref int labelOffset,
+        int localOff,
+        string label)
+    {
+        if (labelOffset == localOff && blockStart >= 0 && labelIndex >= blockStart && labelIndex < resultLines.Count)
+            resultLines.RemoveRange(blockStart, labelIndex - blockStart + 1);
+
+        resultLines.Add(label);
+
+        blockStart = -1;
+        labelIndex = -1;
+        labelOffset = -1;
+    }
+
+    /// <summary>
+    /// Matches an instruction with an immediate operand which may be an address,
+    /// together with its debug annotation:
+    ///     PUSH 0x0000          ; 1:0x0000 68 00 00 // Replaces by PUSH OFFSET DLL::PROCEDURE+0xABCD
+    ///     MOV AX, 0x1234       ; 1:0x0017 B8 34 12
+    ///     MOV EAX, 0x00401000  ; 2:0x1A00 B8 00 10 40 00
+    ///     CALLF 0x00001684     ; 1:0x0078 9A 84 16 00 00 // Replaces by export
+    /// The address is either a flat 32-bit value (Linear Executables), a legacy
+    /// 16:16 segment:offset pair, or a bare word of the 16-bit code. The
+    /// <see cref="FarAddressPattern"/> already joined the far pointers into a flat
+    /// 32-bit value, but the segment form is accepted as well.
+    /// </summary>
+    [GeneratedRegex(@"^[ \t]*(?<mnemonic>[A-Z][A-Z0-9]*)[ \t]+[^;]*?(?<addr>0x(?:(?<flat>[0-9A-Fa-f]{8})|(?<seg>[0-9A-Fa-f]{1,4}):0x(?<off>[0-9A-Fa-f]{1,4})|(?<word>[0-9A-Fa-f]{4,})))[^;]*?[ \t]*;[ \t]*(?<instr>(?<instrObject>[0-9]+):(?<instrOffset>0x[0-9A-Fa-f]+))")]
+    private static partial Regex InstructionPattern();
+
+    /// <summary>
+    /// Target offset of the instruction matched by
+    /// <see cref="InstructionPattern"/>. A flat 32-bit LE address keeps the offset
+    /// in its low word, so both notations give the same result. Returns -1 when
+    /// the operand is not an address at all.
+    /// </summary>
+    private static int FarTargetOffset(Match m)
+    {
+        if (m.Groups["flat"].Success)
+            return (int)(Convert.ToUInt32(m.Groups["flat"].Value, 16) & 0xFFFF);
+
+        if (m.Groups["off"].Success)
+            return Convert.ToInt32(m.Groups["off"].Value, 16);
+
+        return m.Groups["word"].Success
+            ? Convert.ToInt32(m.Groups["word"].Value, 16)
+            : -1;
+    }
 }

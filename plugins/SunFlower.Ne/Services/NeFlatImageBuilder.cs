@@ -13,7 +13,6 @@
 // @creator: atolstopyatov2017@vk.com
 //
 
-using System.Text;
 using SunFlower.Ne.Headers;
 using SunFlower.Ne.Models;
 
@@ -274,7 +273,7 @@ public class NeFlatImageBuilder(NeDumpManager dump)
         _flatEntryPoints.Sort();
     }
 
-    // Need to reference _exportByName — store reference
+    // Need to reference _exportByName 
     private Dictionary<int, string> _exportByName = [];
 
     /// <summary>

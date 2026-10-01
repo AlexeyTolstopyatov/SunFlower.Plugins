@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using Sunflower.Links.Flags;
 
 namespace Sunflower.Links.Headers;
 
@@ -33,7 +34,8 @@ public struct MicrosoftPifEx
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 63)]
     public char[] FileName;
 
-    public ushort FileDosFlags;
+    [MarshalAs(UnmanagedType.U2)]
+    public FileDosFlags FileDosFlags;
     
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 64)]
     public char[] WorkingDirectory;
@@ -48,11 +50,12 @@ public struct MicrosoftPifEx
     public byte WindowHeight;
     public byte WindowPositionX;
     public byte WindowPositionY;
-    public ushort VideoPageFlags;
+    public VideoPageFlags VideoPageFlags;
 
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)]
     public byte[] Alignment;
 
-    public ushort AnotherFlags;
+    [MarshalAs(UnmanagedType.U2)]
+    public OtherFlags AnotherFlags;
     
 }

@@ -109,7 +109,7 @@ public class LeDumpManager : UnsafeManager
         // Remember of it, because GetPhysicalOffset requires explicit
         // object# for given entry point
         var objectNumber = 0;
-        // EntryTable represents complex structure where bundles are not indexed.
+        // EntryBundles represents complex structure where bundles are not indexed.
         // They will be indexed in the high level (LeTableManager)
         Entry? EntryOrNull()
         {

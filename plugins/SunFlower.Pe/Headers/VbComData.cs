@@ -37,11 +37,11 @@ public struct VbComRegistrationInfo
 }
 public struct VbDesignerInfo
 {
-    [MarshalAs(UnmanagedType.BStr)] public String AddInRegKey;
-    [MarshalAs(UnmanagedType.BStr)] public String AddInName;
-    [MarshalAs(UnmanagedType.BStr)] public String AddInDescription; 
-    public UInt32 LoadBehaviour; 
-    [MarshalAs(UnmanagedType.BStr)] public String SatelliteDll; 
-    [MarshalAs(UnmanagedType.BStr)] public String AdditionalRegKey;
-    public UInt32 CommandLineSafe; // 0 - GUI <-> 1 - GUI-less
+    [MarshalAs(UnmanagedType.BStr)] public string AddInRegKey;
+    [MarshalAs(UnmanagedType.BStr)] public string AddInName;
+    [MarshalAs(UnmanagedType.BStr)] public string AddInDescription; 
+    public uint LoadBehaviour; 
+    [MarshalAs(UnmanagedType.BStr)] public string SatelliteDll; 
+    [MarshalAs(UnmanagedType.BStr)] public string AdditionalRegKey;
+    public uint CommandLineSafe; // 0 - GUI <-> 1 - GUI-less
 }

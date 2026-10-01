@@ -15,6 +15,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
 {
     private FileSectionsInfo _info = info;
     public PeImportTableModel ImportTableModel { get; private set; } = new();
+    public PeImportAddressesTableModel IAT { get; private set; }
 
     /// <summary> Deserializes bytes segment to import entries table </summary>
     /// <param name="reader">your content reader instance</param>
@@ -25,7 +26,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
         
         // make sure: Static Import entries exists
         if (!IsDirectoryExists(_info.Directories[1]))
-            return new();
+            return new PeImportTableModel();
         
         try
         {
@@ -34,7 +35,8 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
             while (true)
             {
                 var item = Fill<PeImportDescriptor>(reader);
-                if (item.OriginalFirstThunk == 0) break;
+                if (item.OriginalFirstThunk == 0) 
+                    break;
 
                 items.Add(item);
             }
@@ -42,13 +44,13 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
             foreach (var item in items)
             {
                 reader.BaseStream.Seek(Offset(item.Name), SeekOrigin.Begin);
-                Byte[] name = [];
+                byte[] name = [];
                 while (true)
                 {
                     var b = Fill<byte>(reader);
                     if (b == 0) break;
 
-                    var dllName = new Byte[name.Length + 1];
+                    var dllName = new byte[name.Length + 1];
                     name.CopyTo(dllName, 0);
                     dllName[name.Length] = b;
                     name = dllName;
@@ -88,7 +90,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
         
         reader.BaseStream.Position = iatOffset;
         var entrySize = _info.Is64Bit ? 8 : 4;
-        List<UInt64> iatEntries = [];
+        List<ulong> iatEntries = [];
 
         for (var i = 0; i < iatSize / entrySize; i++)
         {
@@ -111,7 +113,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
     
             // ... next logic ...
         }
-    
+        
         return new();
     }
     /// <param name="reader"> Current instance of <see cref="BinaryReader"/> </param>
@@ -121,28 +123,27 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
     {
         var nameOffset = Offset(descriptor.Name);
         reader.BaseStream.Seek(nameOffset, SeekOrigin.Begin);
-        var dllName = ReadImportString(reader);
-        Debug.WriteLine($"IMAGE_IMPORT_TABLE->{dllName}");
+        var dllName = ReadCString(reader);
         
-        // optional [?]
         var oft = 
-            ReadThunk(reader, descriptor.OriginalFirstThunk, "[By OriginalFirstThunk]");
+            ReadThunk(reader, descriptor.OriginalFirstThunk, "[OFT]")
+                .Select(x => { x.Module = dllName; return x; });
 
-        var ft = 
-            ReadThunk(reader, descriptor.FirstThunk, "[By FirstThunk]");
+        // var ft = 
+        //     ReadThunk(reader, descriptor.FirstThunk, "[FT]");
 
         List<ImportedFunction> functions = [];
         functions.AddRange(oft);
         // functions.AddRange(ft); // <-- may contains duplicates of imported entries
 
-        return new ImportModule { DllName = dllName, Functions = functions };
+        return new ImportModule { Functions = functions };
     }
     /// <summary> Use it when application requires 32bit machine WORD </summary>
     /// <param name="reader"><see cref="BinaryReader"/> instance</param>
     /// <param name="thunkRva">RVA of procedures block</param>
     /// <param name="tag">debug information (#debug only)</param>
     /// <returns>List of imported functions</returns>
-    private List<ImportedFunction> ReadThunk(BinaryReader reader, UInt32 thunkRva, String tag)
+    private List<ImportedFunction> ReadThunk(BinaryReader reader, uint thunkRva, string tag)
     {
         var sizeOfThunk = _info.Is64Bit ? 8 : 4;
         var ordinalBit = _info.Is64Bit ? 0x8000000000000000 : 0x80000000;
@@ -180,11 +181,11 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
                 // IMPORT by name
                 else
                 {
-                    var nameAddr = Offset((UInt32)thunkValue);
+                    var nameAddr = Offset((uint)thunkValue);
                     reader.BaseStream.Position = nameAddr;
                 
                     var hint = reader.ReadUInt16();
-                    var name = ReadImportString(reader);
+                    var name = ReadCString(reader);
                 
                     result.Add(new ImportedFunction
                     {
@@ -207,10 +208,10 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
     /// <param name="reader"> <see cref="BinaryReader"/> instance </param>
     /// <returns> ASCII terminated string <c>TSTR</c> </returns>
     /// <remarks>terminated means zeroed (has <c>\0</c> at the end) </remarks>
-    private static String ReadImportString(BinaryReader reader)
+    private static string ReadCString(BinaryReader reader)
     {
-        List<Byte> bytes = [];
-        Byte b;
+        List<byte> bytes = [];
+        byte b;
         while ((b = reader.ReadByte()) != 0)
             bytes.Add(b);
         
@@ -219,7 +220,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
     /// <summary>
     /// Entry point of this manager
     /// </summary>
-    public void Initialize()
+    public void Dump()
     {
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
         BinaryReader reader = new(stream);

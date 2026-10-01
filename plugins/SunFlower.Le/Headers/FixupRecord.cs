@@ -1,7 +1,7 @@
 ﻿namespace SunFlower.Le.Headers;
 
 /// <summary>
-/// LE Fixup Address Type (Atp) — первый байт fixup record
+/// LE Fixup Address Type (Atp) - first byte of fixup record
 /// Bits: 0-3 = address type, 4 = alias, 5 = list mode
 /// </summary>
 public enum LeFixupAddressType : byte
@@ -16,7 +16,7 @@ public enum LeFixupAddressType : byte
 }
 
 /// <summary>
-/// LE Fixup Relocation Type (Rtp) — второй байт fixup record
+/// LE Fixup Relocation Type (Rtp) - second byte of fixup record
 /// Bits: 0-1 = relocation type, 2 = additive, 3 = 32-bit target offset,
 ///       4 = 32-bit additive, 5 = 16-bit object/module ordinal,
 ///       7 = 8-bit import ordinal
@@ -124,9 +124,4 @@ public readonly struct LeFixupRecord(
     public ushort[] SourceOffsetList { get; } = sourceOffsetList;
 
     public int LogicalPage { get; } = logicalPage;
-
-    public bool IsInternal => RelocationFlags.RelocationType == LeFixupRelocationType.Internal;
-    public bool IsImportOrdinal => RelocationFlags.RelocationType == LeFixupRelocationType.ImportOrdinal;
-    public bool IsImportName => RelocationFlags.RelocationType == LeFixupRelocationType.ImportName;
-    public bool IsOsFixup => RelocationFlags.RelocationType == LeFixupRelocationType.OsFixup;
 }

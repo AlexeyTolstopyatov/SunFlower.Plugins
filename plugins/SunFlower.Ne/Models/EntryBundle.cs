@@ -20,8 +20,7 @@ public class FixedEntry(byte segment, byte flags, ushort offset) : Entry
 public class MoveableEntry(byte flags, byte[] magic, byte segment, ushort offset)
     : Entry
 {
-    public byte Flags { get; } = flags;
-    public byte[] Magic { get; } = magic; // |> INT 0x3F
     public byte Segment { get; } = segment;
-    public ushort Offset { get; } = offset;
+    public byte Flags { get; } = flags;
+    public byte[] Magic { get; } = magic;
 }

@@ -12,6 +12,7 @@ public enum EntryBundleType : byte
 public abstract class Entry
 {
     public abstract EntryBundleType Type { get; }
+    public int Ordinal { get; set; }
 }
 
 public class Entry16Bit : Entry
@@ -30,6 +31,7 @@ public class Entry32Bit : Entry
     public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public uint Offset { get; init; }
+    public int ObjectNumber { get; init; }
     public string EntryType => (Flags & 0x01) != 0 ? "[EXPORT]" : "[STATIC]";
 }
 
@@ -39,6 +41,7 @@ public class Entry286CallGate : Entry
     public string EntryName { get; set; } = string.Empty;
     public byte Flags { get; init; }
     public ushort Offset { get; init; }
+    public int ObjectNumber { get; init; }
     public ushort CallGateSelector { get; init; } // reserved. Fills by loader
     public string EntryType => (Flags & 0x01) != 0 
         ? "[EXPORT]" 
@@ -65,7 +68,7 @@ public class EntryBundle
 {
     public byte Count { get; init; }
     public EntryBundleType Type { get; init; }
-    public ushort ObjectNumber { get; init; } = 0;
+    public ushort ObjectNumber { get; init; }
     public List<Entry> Entries { get; } = [];
 
     public string TypeString => Type switch
@@ -76,20 +79,5 @@ public class EntryBundle
         EntryBundleType.Forwarder => "`.FORWARDER`",
         EntryBundleType.Unused => "`.UNUSED`",
         _ => "`.WHAT?`"
-    };
-
-    public string TypeDescription => Type switch
-    {
-        EntryBundleType._16Bit =>
-            "Bundle contains records with `16-bit` offsets to exporting entries in program/library module.",
-        EntryBundleType._32Bit =>
-            "Bundle contains records with `32-bit` offsets to exporting entries in program/library module.",
-        EntryBundleType._286CallGate =>
-            "Bundle has entries which require execute in 2-ring (see Intel architecture). CallGate selector may be empty. It fills by `.EXE`/`.DLL` loader while app is running.",
-        EntryBundleType.Forwarder =>
-            "Bundle has importing entries offsets to procedure name ASCII or import by ordinal. ",
-        EntryBundleType.Unused =>
-            "Unused bundle not a runtime error. This is a space between exporting or importing entries for skipping enumeration. (@12, ..., @100).",
-        _ => "If you see it - this bundle or all table entirely has a segmentation errors."
     };
 }

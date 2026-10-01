@@ -95,7 +95,9 @@ public class EntryTableManager(
                         {
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16(),
-                            EntryName = GetExportString(globalCounter)
+                            EntryName = GetExportString(globalCounter),
+                            ObjectNumber = bundle.ObjectNumber,
+                            Ordinal = globalCounter
                         };
                         break;
                     case EntryBundleType._286CallGate:
@@ -104,7 +106,9 @@ public class EntryTableManager(
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt16(),
                             CallGateSelector = reader.ReadUInt16(),
-                            EntryName = GetExportString(globalCounter)
+                            EntryName = GetExportString(globalCounter),
+                            ObjectNumber = bundle.ObjectNumber,
+                            Ordinal = globalCounter
                         };
                         break;
                     case EntryBundleType._32Bit:
@@ -112,7 +116,9 @@ public class EntryTableManager(
                         {
                             Flags = reader.ReadByte(),
                             Offset = reader.ReadUInt32(),
-                            EntryName = GetExportString(globalCounter)
+                            EntryName = GetExportString(globalCounter),
+                            ObjectNumber =  bundle.ObjectNumber,
+                            Ordinal = globalCounter
                         };
                         break;
                     case EntryBundleType.Forwarder:
@@ -121,7 +127,8 @@ public class EntryTableManager(
                             Reserved = reader.ReadUInt16(),
                             Flags = reader.ReadByte(),
                             ModuleOrdinal = reader.ReadUInt16(),
-                            OffsetOrOrdinal = reader.ReadUInt32()
+                            OffsetOrOrdinal = reader.ReadUInt32(),
+                            Ordinal = globalCounter
                         };
                         // TryGetName but this is a import values
                         var isOrdinal = (fwd.Flags & 0x01) != 0;
@@ -134,13 +141,14 @@ public class EntryTableManager(
                     
                         entry = fwd;
                         break;
-                     default: // case EntryBundleType.Unused or Wrong entry table bundle:
+                    case EntryBundleType.Unused:
+                    default: // case EntryBundleType.Unused or Wrong entry table bundle:
                         entry = new EntryUnused();
                         if (type != EntryBundleType.Unused)
                             Console.Error.WriteLine($"Skipped: Type={{{type}}}; Object#={objNumber}; \n");
                         break;
                 }
-
+                
                 bundle.Entries.Add(entry);
                 ++globalCounter;
             }

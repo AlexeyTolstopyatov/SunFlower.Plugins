@@ -24,7 +24,7 @@ public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
     /// <param name="rva"> Required RVA </param>
     /// <returns> File offset from RVA of selected section </returns>
     /// <exception cref="SectionNotFoundException"> If RVA not belongs to any section </exception>
-    protected Int64 Offset(Int64 rva)
+    protected long Offset(long rva)
     {
         var section = Section(rva);
         
@@ -33,7 +33,7 @@ public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
     /// <param name="rva"> Required relative address </param>
     /// <returns> <see cref="PeSection"/> Which RVA belongs </returns>
     /// <exception cref="SectionNotFoundException"> If RVA not belongs to any section </exception>
-    private PeSection Section(Int64 rva)
+    private PeSection Section(long rva)
     {   // rva = {uint} 2019914798 
         // rva = {long} 2019914798 
         // RVA always 32-bit
@@ -53,7 +53,7 @@ public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
     /// <param name="count">count of elements in segment</param>
     /// <typeparam name="T">type of array-segment</typeparam>
     /// <returns>Array of structures</returns>
-    protected T[] ReadArray<T>(BinaryReader reader, UInt32 rva, UInt32 count) where T : struct
+    protected T[] ReadArray<T>(BinaryReader reader, uint rva, uint count) where T : struct
     {
         var offset = Offset(rva);
         reader.BaseStream.Seek(offset, SeekOrigin.Begin);
