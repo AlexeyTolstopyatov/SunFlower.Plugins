@@ -6,17 +6,17 @@ namespace SunFlower.Pe.Headers;
 public struct Vb5ProjectInfo
 {
     /// <summary>
-    /// Must contain 5.00 (0x1F4)
+    /// Must contain 5.00 (0x1F4). This is a true.
     /// </summary>
     public UInt32 Version;
     public UInt32 ObjectTablePointer;
     public UInt32 Null;
     /// <summary>
-    ///  0xE9E9E9E9.
+    ///  0xE9E9E9E9
     /// </summary>
     public UInt32 CodeStartsPointer;
     /// <summary>
-    ///  0x9E9E9E9E.
+    ///  0x9E9E9E9E
     /// </summary>
     public UInt32 CodeEndsPointer;
     public UInt32 DataSize;

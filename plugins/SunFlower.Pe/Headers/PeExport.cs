@@ -9,11 +9,11 @@ public struct PeImageExportDirectory
     public UInt32 TimeDateStamp;
     public UInt16 MajorVersion;
     public UInt16 MinorVersion;
-    public UInt32 Name;               // RVA имени модуля
-    public UInt32 Base;               // Базовый ординал
-    public UInt32 NumberOfFunctions;  // Количество экспортируемых функций
-    public UInt32 NumberOfNames;      // Количество именованных функций
-    public UInt32 AddressOfFunctions; // RVA массива адресов функций
-    public UInt32 AddressOfNames;     // RVA массива имен функций
-    public UInt32 AddressOfNameOrdinals; // RVA массива ординалов
+    public UInt32 Name;
+    public UInt32 Base;
+    public UInt32 NumberOfFunctions;
+    public UInt32 NumberOfNames;
+    public UInt32 AddressOfFunctions;
+    public UInt32 AddressOfNames;
+    public UInt32 AddressOfNameOrdinals;
 }

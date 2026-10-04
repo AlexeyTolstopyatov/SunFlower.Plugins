@@ -5,13 +5,13 @@ namespace SunFlower.Pe.Services;
 
 public class PeVbRuntime4Manager : DirectoryManager
 {
-    private readonly FileSectionsInfo _info;
+    private readonly ImageDetails _info;
     private readonly BinaryReader _reader;
     private long _vbanew;
     public Vb4Header Vb4Header { get; }
     public long VbOffset => _vbanew;
     
-    public PeVbRuntime4Manager(FileSectionsInfo info, BinaryReader reader) : base(info)
+    public PeVbRuntime4Manager(ImageDetails info, BinaryReader reader) : base(info)
     {
         _info = info;
         _reader = reader;
@@ -22,17 +22,20 @@ public class PeVbRuntime4Manager : DirectoryManager
     private Vb4Header Find()
     {
         var header = new Vb4Header();
-        // recompute Image Base Alignment for a 1st time:
+        // recompute ImageDetails Base Alignment for a 1st time:
         // 
         // Dim ImageBaseAlignment As Long = ((OptHeader.ImageBase + OptHeader.EntryPoint) - GetPtrFromRVA(OptHeader.EntryPoint))
         // 
-        var imageBaseAlignment = _info.ImageBase + _info.EntryPoint - Offset(_info.EntryPoint);
+        // NOTE: Offset() throws SectionNotFoundException when the entry point
+        // lives outside every section (packed / crafted images), so the whole
+        // computation must stay inside the guard.
         try
         {
             var offset = Offset(_info.EntryPoint);
+            var imageBaseAlignment = _info.ImageBase + _info.EntryPoint - offset;
             _reader.BaseStream.Position = offset;
 
-            var pushOpcode = _reader.ReadByte();   // push opcode
+            var pushOpcode = _reader.ReadByte();    // push opcode
             var pushAddress = _reader.ReadUInt32(); // always 32-bit register.
             
             if (pushOpcode != 0x68) // <-- PUSH passed. CALL passed.

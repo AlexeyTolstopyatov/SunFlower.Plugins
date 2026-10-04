@@ -26,7 +26,7 @@ public enum LeFixupRelocationType : byte
     Internal = 0,       // Internal reference
     ImportOrdinal = 1,  // Imported ordinal
     ImportName = 2,     // Imported name
-    OsFixup = 3,        // OSFIXUP
+    ViaEntryTable = 3,        // OSFIXUP
 }
 
 /// <summary>
@@ -82,9 +82,9 @@ public readonly struct LeFixupTargetImportName(ushort moduleIndex, uint nameOffs
 /// <summary>
 /// Target data for OS fixup
 /// </summary>
-public readonly struct LeFixupTargetEntryTable(byte[] data)
+public readonly struct LeFixupTargetEntryTable(byte[] data, byte[] additive)
 {
-    public byte[] Data { get; } = data;
+    public ushort Ordinal { get; } = Convert.ToUInt16(data);
 }
 
 /// <summary>

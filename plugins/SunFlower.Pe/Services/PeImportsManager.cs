@@ -11,26 +11,26 @@ namespace SunFlower.Pe.Services;
 ///
 /// Licensed under MIT
 /// 
-public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryManager(info), IManager
+public class PeImportsManager(ImageDetails info, string path) : DirectoryManager(info), IManager
 {
-    private FileSectionsInfo _info = info;
-    public PeImportTableModel ImportTableModel { get; private set; } = new();
-    public PeImportAddressesTableModel IAT { get; private set; }
+    private ImageDetails _info = info;
+    public ImportTable ImportTable { get; private set; } = new();
+    public ImportAddressTable IAT { get; private set; }
 
     /// <summary> Deserializes bytes segment to import entries table </summary>
     /// <param name="reader">your content reader instance</param>
-    /// <returns> Done <see cref="PeImportTableModel"/> structure </returns>
-    private PeImportTableModel FillImportTableModel(BinaryReader reader)
+    /// <returns> Done <see cref="ImportTable"/> structure </returns>
+    private ImportTable FillImportTableModel(BinaryReader reader)
     {
-        PeImportTableModel dump = new();
+        ImportTable dump = new();
         
         // make sure: Static Import entries exists
         if (!IsDirectoryExists(_info.Directories[1]))
-            return new PeImportTableModel();
+            return new ImportTable();
         
         try
         {
-            reader.BaseStream.Seek(Offset(_info.Directories[1].VirtualAddress), SeekOrigin.Begin); // all sections instead IMPORTS
+            reader.BaseStream.Seek(Offset(_info.Directories[1].VirtualAddress ?? 0), SeekOrigin.Begin); // all sections instead IMPORTS
             List<PeImportDescriptor> items = [];
             while (true)
             {
@@ -78,14 +78,14 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
     /// <summary> Deserializes bytes segment into IAT entries </summary>
     /// <param name="reader"></param>
     /// <returns> IAT model for current image </returns>
-    private PeImportTableModel FillImportAddressesTableModel(BinaryReader reader)
+    private ImportTable FillImportAddressesTableModel(BinaryReader reader)
     {
-        var iatRva = _info.Directories[12].VirtualAddress;
+        var iatRva = _info.Directories[12].VirtualAddress ?? 0;
         var iatSize = _info.Directories[12].Size;
 
         if (IsDirectoryExists(_info.Directories[12])) 
             return new();
-
+        
         var iatOffset = Offset(iatRva);
         
         reader.BaseStream.Position = iatOffset;
@@ -225,7 +225,7 @@ public class PeImportsManager(FileSectionsInfo info, string path) : DirectoryMan
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
         BinaryReader reader = new(stream);
 
-        ImportTableModel = FillImportTableModel(reader);
+        ImportTable = FillImportTableModel(reader);
         
         reader.Close();
     }

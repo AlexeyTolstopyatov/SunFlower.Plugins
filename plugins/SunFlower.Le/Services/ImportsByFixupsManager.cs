@@ -55,7 +55,7 @@ public class ImportsByFixupsManager
                     imports.Add(new ImportRecord(
                         failSafeMod,
                         SunFlower.Abstractions.FlowerReport.SafeString(impName),
-                        /*impProcOffset + */name.NameOffset
+                        name.NameOffset
                     ));
                     break;
                 }

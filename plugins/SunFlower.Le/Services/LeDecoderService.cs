@@ -14,6 +14,7 @@ using SunFlower.Le.Headers;
 using Object = SunFlower.Le.Headers.Le.Object;
 
 namespace SunFlower.Le.Services;
+
 public partial class LeDecoderService
 {
     private readonly LeDumpManager _dump;
@@ -111,26 +112,25 @@ public partial class LeDecoderService
             $"; Imports: {_dump.ImportRecords.Length}",
             ";"
         ]);
-        
+
         _results.AddRange(ExternalEntryPointsExtension.AddSignatures(_dump.EntryBundles
             .SelectMany(x => x.Entries)
             .ToArray()));
-        
+
         BuildExportMap();
 
         _importRecords = _dump.ImportRecords;
-        
-        //BuildImportNameMap();
+
         BuildFixupSymbolMap();
-        
+
         for (var i = 0; i < _dump.Objects.Length; i++)
         {
             var obj = _dump.Objects[i];
-            if (obj.VirtualSegmentSize == 0) continue;
+            if (obj.VirtualSegmentSize == 0)
+                continue;
 
-            // Data objects are analysed too: they may keep procedures
-            // (procedure pointers of the drivers DDB, callbacks, jump tables)
-            if (!obj.Execute && !AnalyseDataObjects) continue;
+            if (!AnalyseDataObjects && obj.Resource)
+                continue;
 
             TranslateObject(i + 1, obj);
         }
@@ -139,6 +139,7 @@ public partial class LeDecoderService
 
         return _results.ToArray();
     }
+
     /// <summary>
     /// Resolves the immediate operands of the listing using the relocation
     /// records (the highest priority) and the exported procedure names (the last
@@ -285,7 +286,8 @@ public partial class LeDecoderService
 
         for (var i = 0; i < result.Length; i++)
         {
-            if (!byte.TryParse(digits.AsSpan(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var value))
+            if (!byte.TryParse(digits.AsSpan(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture,
+                    out var value))
                 return [];
 
             result[i] = value;
@@ -366,7 +368,7 @@ public partial class LeDecoderService
                 };
                 if (string.IsNullOrEmpty(pair.name))
                     pair.name = $"@{entry.Ordinal}";
-                
+
                 if (pair.offset >= 0 && objNum > 0)
                     _exportAt[(objNum, pair.offset)] = FailSafe(pair.name);
 
@@ -402,16 +404,17 @@ public partial class LeDecoderService
         for (var oi = 0; oi < _dump.Objects.Length; oi++)
         {
             var obj = _dump.Objects[oi];
-            
-            if (obj.PageMapEntries == 0) 
+
+            if (obj.PageMapEntries == 0)
                 continue;
-            
-            var startLogical = (int)obj.PageMapIndex; // (int)_dump.Pages[obj.PageMapIndex - 1].Page.LongPageIndex; // ; // 0-based
+
+            var startLogical =
+                (int)obj.PageMapIndex; // (int)_dump.Pages[obj.PageMapIndex - 1].Page.LongPageIndex; // ; // 0-based
             for (var pi = 0; pi < obj.PageMapEntries; pi++)
             {
                 var logicalPage = startLogical + pi; // +0 +1 +2 ...
                 logicalPageToOwner[logicalPage] = (oi + 1, pi);
-                
+
                 Console.WriteLine($"lpag#={logicalPage} -> (obj#{oi + 1} page[{pi}])");
             }
         }
@@ -498,7 +501,7 @@ public partial class LeDecoderService
     /// </summary>
     private static bool IsCodePointerAddressType(LeFixupAddressType type) =>
         type is LeFixupAddressType.Far32
-             or LeFixupAddressType.Far48;
+            or LeFixupAddressType.Far48;
 
     private static void AdvancePosition(ref uint pos, LeFixupRecord fixup)
     {
@@ -524,7 +527,11 @@ public partial class LeDecoderService
                 pos += (uint)(flags.Is16BitObjectModule ? 2 : 1);
                 pos += (uint)(flags.Is32BitTargetOffset ? 4 : 2);
                 break;
-            case LeFixupRelocationType.OsFixup:
+            // In the Microsoft OS/2 SDK it was calls "OSFIXUP???"
+            // because of missing of application. NE segmented files had OSFixups for FPU emulation
+            // Then I really hope that linker doesn't use this type of relocations in programs
+            case LeFixupRelocationType.ViaEntryTable:
+                Console.WriteLine($"Entry Point fixup: @{((LeFixupTargetEntryTable)fixup.TargetData).Ordinal}");
                 pos += (uint)(flags.Is16BitObjectModule ? 2 : 1);
                 break;
         }
@@ -545,7 +552,7 @@ public partial class LeDecoderService
                 var exp = _exportAt.GetValueOrDefault((targetObj, targetOff));
 
                 return
-                    exp ?? $"::{targetObj:X4}:{targetOff:X4}";
+                    exp ?? $"::far_{targetObj:X4}_{targetOff:X4}";
 
             case LeFixupTargetImportOrdinal impOrd:
                 var modName = GetModuleName(impOrd.ModuleIndex);
@@ -560,7 +567,8 @@ public partial class LeDecoderService
                     : $"{mod}::{proc}";
 
                 return name;
-
+            case LeFixupTargetEntryTable ent:
+                return $"::__@{ent.Ordinal}";
             default:
                 return null;
         }
@@ -609,7 +617,7 @@ public partial class LeDecoderService
                 continue;
 
             var fileOffset = _dump.LeHeader.e32_datapage + (page.LongPageIndex - 1) * _pageSize;
-            
+
             var isLastPage = ((byte)rawFlags & 0x80) != 0;
 
             var bytesToRead = isLastPage ? (int)_dump.LeHeader.e32_lastpagesize : _pageSize;
@@ -645,7 +653,7 @@ public partial class LeDecoderService
         if (objBytes == null || objBytes.Length == 0) return;
 
         var entryPoints = new SortedSet<int>();
-        
+
         if (objectNumber == _mainObj)
             entryPoints.Add((int)_mainEip);
 
@@ -669,7 +677,7 @@ public partial class LeDecoderService
         // A data object may keep procedures too, so the internal fixup targets
         // referenced by the code (callbacks, DDB procedure fields, jump tables)
         // are used as entry points of such an object
-        if (!isExecutable && _fixupTargetsByObject.TryGetValue(objectNumber, out var codeReferences))
+        if ( /*!isExecutable && */_fixupTargetsByObject.TryGetValue(objectNumber, out var codeReferences))
         {
             foreach (var reference in codeReferences.Where(r => r >= 0 && r < objBytes.Length))
                 entryPoints.Add(reference);
@@ -736,7 +744,8 @@ public partial class LeDecoderService
 
         _results.Add("");
         _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
-        _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes, Entry points: {entryPoints.Count}");
+        _results.Add(
+            $";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes, Entry points: {entryPoints.Count}");
 
         if (!isExecutable)
             _results.Add(";     $Feature is UNDER CONSTRUCTION$");
@@ -760,7 +769,7 @@ public partial class LeDecoderService
     /// </summary>
     private void DumpObjectStrings(int objectNumber, byte[] objBytes)
     {
-        if (!DumpStrings) 
+        if (!DumpStrings)
             return;
 
         var strings = DataObjectExtension.CollectAsciiStrings(objBytes, MinStringLength);
@@ -772,7 +781,7 @@ public partial class LeDecoderService
         foreach (var (offset, text) in strings)
         {
             var literal = "DB " + SunFlower.Abstractions.FlowerReport.SafeString(text);
-            _results.Add($"\t{literal, -40} ; {objectNumber}:0x{offset:X4} len={text.Length} bytes");
+            _results.Add($"\t{literal,-40} ; {objectNumber}:0x{offset:X4} len={text.Length} bytes");
         }
     }
 
@@ -790,7 +799,7 @@ public partial class LeDecoderService
         var blockStart = -1;
         var labelIndex = -1;
         var labelOffset = -1;
-        
+
         foreach (var rawLine in lines)
         {
             var line = rawLine.TrimEnd('\r');
@@ -843,7 +852,8 @@ public partial class LeDecoderService
 
             if (_exportAt.TryGetValue((objectNumber, localOff), out var expName))
             {
-                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff, $"{expName}:");
+                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff,
+                    $"{expName}:");
             }
             else if (objectNumber == _mainObj && localOff == _mainEip)
             {
@@ -948,7 +958,8 @@ public partial class LeDecoderService
     /// <see cref="FarAddressPattern"/> already joined the far pointers into a flat
     /// 32-bit value, but the segment form is accepted as well.
     /// </summary>
-    [GeneratedRegex(@"^[ \t]*(?<mnemonic>[A-Z][A-Z0-9]*)[ \t]+[^;]*?(?<addr>0x(?:(?<flat>[0-9A-Fa-f]{8})|(?<seg>[0-9A-Fa-f]{1,4}):0x(?<off>[0-9A-Fa-f]{1,4})|(?<word>[0-9A-Fa-f]{4,})))[^;]*?[ \t]*;[ \t]*(?<instr>(?<instrObject>[0-9]+):(?<instrOffset>0x[0-9A-Fa-f]+))")]
+    [GeneratedRegex(
+        @"^[ \t]*(?<mnemonic>[A-Z][A-Z0-9]*)[ \t]+[^;]*?(?<addr>0x(?:(?<flat>[0-9A-Fa-f]{8})|(?<seg>[0-9A-Fa-f]{1,4}):0x(?<off>[0-9A-Fa-f]{1,4})|(?<word>[0-9A-Fa-f]{4,})))[^;]*?[ \t]*;[ \t]*(?<instr>(?<instrObject>[0-9]+):(?<instrOffset>0x[0-9A-Fa-f]+))")]
     private static partial Regex InstructionPattern();
 
     /// <summary>

@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Sunflower.Dasm;
 using SunFlower.Le.Headers;
+using SunFlower.Ne.Headers;
 using Object = SunFlower.Le.Headers.Lx.Object;
 
 namespace SunFlower.Le.Services;
@@ -127,7 +128,7 @@ public partial class LxDecoderService
             var obj = _dump.Objects[i];
             if (obj.VirtualSegmentSize == 0) continue;
 
-            if (/*!obj.Execute &&*/!AnalyseDataObjects) continue;
+            if (/*!obj.Execute &&*/!AnalyseDataObjects && obj.Resource) continue;
 
             TranslateObject(i + 1, obj);
         }
@@ -494,11 +495,15 @@ public partial class LxDecoderService
                 pos += (uint)(flags.Is8BitImportOrdinal ? 1 : flags.Is32BitTargetOffset ? 4 : 2);
                 break;
             case LeFixupRelocationType.ImportName:
+                
                 pos += (uint)(flags.Is16BitObjectModule ? 2 : 1);
                 pos += (uint)(flags.Is32BitTargetOffset ? 4 : 2);
                 break;
-            case LeFixupRelocationType.OsFixup:
+            case LeFixupRelocationType.ViaEntryTable:
+                Console.WriteLine($"Entry Point fixup: @{((LeFixupTargetEntryTable)fixup.TargetData).Ordinal}");
                 pos += (uint)(flags.Is16BitObjectModule ? 2 : 1);
+                //pos += ((LeFixupTargetEntryTable)fixup.TargetData).Additive;
+                
                 break;
         }
 
@@ -518,7 +523,7 @@ public partial class LxDecoderService
                 var exp = _exportAt.GetValueOrDefault((targetObj, targetOff));
 
                 return
-                    exp ?? $"::{targetObj:X4}:{targetOff:X4}";
+                    exp ?? $"::far_{targetObj:X4}_{targetOff:X4}";
 
             case LeFixupTargetImportOrdinal impOrd:
                 var modName = GetModuleName(impOrd.ModuleIndex);
@@ -533,7 +538,11 @@ public partial class LxDecoderService
                     : $"{mod}::{proc}";
 
                 return name;
-
+            case LeFixupTargetEntryTable ent:
+                var ordinal = $"::__@{ent.Ordinal}"; // Fixup via entry table versus export pointer
+                
+                return ordinal;
+                
             default:
                 return null;
         }
@@ -545,7 +554,7 @@ public partial class LxDecoderService
         if (idx >= 0 && idx < _dump.ImportRecords.Length)
             return _dump.ImportRecords[idx].DllName;
 
-        return $"mod_{moduleIndex}";
+        return $"mod_#{moduleIndex}";
     }
 
     private string GetProcedureName(uint nameOffset)
@@ -583,9 +592,7 @@ public partial class LxDecoderService
 
             // LX: file offset = e32_datapage + (PageOffset << e32_pageshift)
             var fileOffset = _dump.LxHeader.e32_datapage + ((long)page.PageOffset << _pageShift);
-
-            Console.WriteLine($" -> Located 0x{fileOffset:X}");
-
+            
             // LX: DataSize gives actual bytes in file, or use page size if zero
             var bytesToRead = page.DataSize > 0 ? page.DataSize : _pageSize;
             if (bytesToRead <= 0) bytesToRead = _pageSize;
@@ -612,12 +619,16 @@ public partial class LxDecoderService
     private void TranslateObject(int objectNumber, Object obj)
     {
         var is32Bit = (obj.ObjectFlagsMask & 0x2000) != 0;
-        var modeLabel = is32Bit ? "32-bit" : "16-bit";
+        var modeLabel = is32Bit 
+            ? "32-bit" 
+            : "16-bit";
+        
         var suggestedName = Object.GetSuggestedNameByPermissions(obj);
         var isExecutable = obj.Execute;
-
+        
         var objBytes = BuildObjectBytesByPageIndex(obj);
-        if (objBytes == null || objBytes.Length == 0) return;
+        if (objBytes == null || objBytes.Length == 0) 
+            return;
 
         var entryPoints = new SortedSet<int>();
         if (objectNumber == _mainObj)
@@ -643,7 +654,7 @@ public partial class LxDecoderService
         // A data object may keep procedures too, so the internal fixup targets
         // referenced by the code (callbacks, DDB procedure fields, jump tables)
         // are used as entry points of such an object
-        if (!isExecutable && _fixupTargetsByObject.TryGetValue(objectNumber, out var codeReferences))
+        if (/*!isExecutable && */_fixupTargetsByObject.TryGetValue(objectNumber, out var codeReferences))
         {
             foreach (var reference in codeReferences.Where(r => r >= 0 && r < objBytes.Length))
                 entryPoints.Add(reference);
@@ -673,7 +684,7 @@ public partial class LxDecoderService
             return;
         }
 
-        if (entryPoints.Count == 0) entryPoints.Add(0);
+        // if (entryPoints.Count == 0) entryPoints.Add(0);
 
         var followedTargets = 0;
         string annotation;
@@ -705,7 +716,7 @@ public partial class LxDecoderService
             annotation = $"; Fatal: {ex.Message}";
         }
 
-        _results.Add("");
+        _results.Add(";");
         _results.Add($"; === Object#{objectNumber} : {suggestedName} [{string.Join(", ", obj.ObjectFlags)}] ===");
         _results.Add($";     {modeLabel}, Virtual Size: {obj.VirtualSegmentSize} bytes, Entry points: {entryPoints.Count}");
 
@@ -753,13 +764,48 @@ public partial class LxDecoderService
         var resultLines = new List<string>();
         const int maxInstLength = 4;
 
+        // The decoder marks every procedure/entry point with an anonymous label
+        // (p_0xOFFSET) and, sometimes, with a banner comment above it. When the real
+        // symbol of that location is known, the label and its banner are replaced
+        // with the symbol instead of being duplicated
+        var headerStart = -1;
+        var blockStart = -1;
+        var labelIndex = -1;
+        var labelOffset = -1;
+        
         foreach (var rawLine in lines)
         {
             var line = rawLine.TrimEnd('\r');
 
-            // IBM revision of linear executable format keeps a far pointer as one 32-bit value.
-            // The Sunflower intel decoder prints those 4 bytes as a 16:16 far (Ap/Mp
-            // operand) - both halves are joined back here,
+            var labelMatch = DecoderLabelPattern.Match(line);
+            if (labelMatch.Success)
+            {
+                blockStart = headerStart >= 0 ? headerStart : resultLines.Count;
+                labelIndex = resultLines.Count;
+                labelOffset = Convert.ToInt32(labelMatch.Groups["offset"].Value, 16);
+                headerStart = -1;
+                resultLines.Add(line);
+                continue;
+            }
+
+            // "; Procedure at 0x... instruction offset" banner which belongs to the
+            // label below it
+            if (DecoderLabelPattern.IsMatch(line))
+            {
+                if (headerStart < 0) headerStart = resultLines.Count;
+                resultLines.Add(line);
+                continue;
+            }
+
+            // Any other line breaks the banner, the label which follows has none
+            headerStart = -1;
+
+            // Linear Executable keeps a far pointer as one 32-bit value. The Intel
+            // decoder prints those 4 bytes as a 16:16 segment:offset pair (Ap/Mp
+            // operand) - both halves are joined back here, because in LE/LX such an
+            // address is not always a far one. Every joined value becomes a candidate
+            // entry point for the next analysis pass, so the jumps and the calls
+            // with a big address are analysed too
             line = FarAddressPattern.Replace(line, match =>
             {
                 var flat = ((uint)Convert.ToInt32(match.Groups["seg"].Value, 16) << 16)
@@ -779,11 +825,17 @@ public partial class LxDecoderService
 
             if (_exportAt.TryGetValue((objectNumber, localOff), out var expName))
             {
-                resultLines.Add($"{expName}:");
+                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff, $"{expName}:");
             }
             else if (objectNumber == _mainObj && localOff == _mainEip)
             {
-                resultLines.Add("main:");
+                AddProcedureLabel(resultLines, ref blockStart, ref labelIndex, ref labelOffset, localOff, "main:");
+            }
+            else
+            {
+                blockStart = -1;
+                labelIndex = -1;
+                labelOffset = -1;
             }
 
             line = line.Replace($"; 0x{localOff:X4}", $"; {objectNumber}:0x{localOff:X4}");
@@ -800,7 +852,7 @@ public partial class LxDecoderService
 
             if (fixupsInInst.Count > 0)
             {
-                var comments = "possible xref: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}+0x{f.offset:X}"));
+                var comments = "xref: " + string.Join(", ", fixupsInInst.Select(f => $"{f.symbol}+0x{f.offset:X}"));
                 line = $"{line.TrimEnd()} {comments}";
             }
 
@@ -809,7 +861,39 @@ public partial class LxDecoderService
 
         return string.Join("\n", resultLines);
     }
+    /// <summary>
+    /// Matches the label which the Intel decoder puts in front of a procedure
+    /// (a CALL target) or of an entry point:
+    ///     p_0x0100:
+    ///     __0x0200:
+    /// Such a label is anonymous, so it is removed as soon as the real symbol
+    /// of the procedure is known (see <see cref="AddProcedureLabel"/>)
+    /// </summary>
+    private static readonly Regex DecoderLabelPattern = new(
+        @"^[ \t]*(?:p_0x|__0x)(?<offset>[0-9A-Fa-f]+):[ \t]*$",
+        RegexOptions.Compiled);
+    /// <summary>
+    /// Puts the resolved name of the procedure in front of the instruction and
+    /// drops the anonymous label of the decoder when it points at the very same offset
+    /// </summary>
+    private static void AddProcedureLabel(
+        List<string> resultLines,
+        ref int blockStart,
+        ref int labelIndex,
+        ref int labelOffset,
+        int localOff,
+        string label)
+    {
+        if (labelOffset == localOff && blockStart >= 0 && labelIndex >= blockStart && labelIndex < resultLines.Count)
+            resultLines.RemoveRange(blockStart, labelIndex - blockStart + 1);
 
+        resultLines.Add(label);
+
+        blockStart = -1;
+        labelIndex = -1;
+        labelOffset = -1;
+    }
+    
     /// <summary>
     /// Matches a direct far control flow instruction with the address as the Intel
     /// decoder prints it — a 16:16 segment:offset pair of the Ap/Mp operand:

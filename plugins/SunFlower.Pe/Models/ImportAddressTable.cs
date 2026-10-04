@@ -1,6 +1,6 @@
 ﻿namespace SunFlower.Pe.Models;
 
-public class PeImportAddressesTableModel
+public class ImportAddressTable
 {
     
 }

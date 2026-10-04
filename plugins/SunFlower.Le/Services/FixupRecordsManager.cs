@@ -75,15 +75,20 @@ public class FixupRecordsManager
                 return new LeFixupTargetImportName(moduleIndex, nameOffset);
             }
 
-            case LeFixupRelocationType.OsFixup:
+            case LeFixupRelocationType.ViaEntryTable:
             {
-                var data = new byte[2];
+                var data = new byte[2]; // Entry# 
+                byte[] additive = [0]; // Disabled by default. Additives are optional
+                
                 if (flags.Is16BitObjectModule)
                     data = reader.ReadBytes(2);
                 else 
                     data = reader.ReadBytes(1);
-                    
-                return new LeFixupTargetEntryTable(data);
+
+                // if (flags.HasAdditive)
+                //     additive = reader.ReadBytes(flags.Is32BitAdditive ? 4 : 2);
+                
+                return new LeFixupTargetEntryTable(data, additive);
             }
 
             default:

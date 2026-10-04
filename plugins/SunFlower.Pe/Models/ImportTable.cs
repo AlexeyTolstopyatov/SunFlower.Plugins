@@ -1,8 +1,8 @@
 ﻿namespace SunFlower.Pe.Models;
 
-public class PeImportTableModel
+public class ImportTable
 { 
-    // other need fields here . (structure like PeExportTableModel)
+    // other need fields here . (structure like ExportTable)
     public List<ImportModule> Modules { get; set; } = [];
 
 }

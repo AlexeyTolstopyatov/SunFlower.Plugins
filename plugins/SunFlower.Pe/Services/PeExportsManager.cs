@@ -18,10 +18,10 @@ namespace SunFlower.Pe.Services;
 /// in PE32/+ required image
 /// </summary>
 /// <param name="info"></param>
-public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryManager(info), IManager
+public class PeExportsManager(ImageDetails info, string path) : DirectoryManager(info), IManager
 {
-    private readonly FileSectionsInfo _info = info;
-    public PeExportTableModel ExportTableModel { get; private set; } = new();
+    private readonly ImageDetails _info = info;
+    public ExportTable ExportTable { get; private set; } = new();
 
     // Declare Imports Exports CRT BaseRelocs (and other) sections here.
     public void Dump()
@@ -30,52 +30,83 @@ public class PeExportsManager(FileSectionsInfo info, string path) : DirectoryMan
         FileStream stream = new(path, FileMode.Open, FileAccess.Read);
         BinaryReader reader = new(stream);
 
-        ExportTableModel = FillExportTableModel(reader);
+        ExportTable = FillExportTableModel(reader);
         
         reader.Close();
     }
 
-    private PeExportTableModel FillExportTableModel(BinaryReader reader)
+    private ExportTable FillExportTableModel(BinaryReader reader)
     {
         // make sure: ExportsDirectory exists
-        if (!IsDirectoryExists(_info.Directories[0]))
-            return new();
-        
-        PeExportTableModel model = new();
-        
-        var exportRva = _info.Directories[0].VirtualAddress;
-        var exportOffset = Offset(exportRva);
+        if (_info.Directories.Length == 0 || !IsDirectoryExists(_info.Directories[0]))
+            return new ExportTable();
 
-        reader.BaseStream.Seek(exportOffset, SeekOrigin.Begin);
-        var exportDir = Fill<PeImageExportDirectory>(reader);
-        model.ExportDirectory = exportDir; // <-- ExportDirectory added
-        
-        reader.BaseStream.Position = Offset(exportDir.Name);
-        
-        var moduleName = ReadImportString(reader);
-        Debug.WriteLine(moduleName);
-        
-        var functionAddresses = ReadArray<uint>(reader, exportDir.AddressOfFunctions, exportDir.NumberOfFunctions);
-        var namePointers = ReadArray<uint>(reader, exportDir.AddressOfNames, exportDir.NumberOfNames);
-        var ordinals = ReadArray<ushort>(reader, exportDir.AddressOfNameOrdinals, exportDir.NumberOfNames);
+        var model = new ExportTable();
 
-        for (var i = 0; i < exportDir.NumberOfNames; i++)
+        // A single corrupted directory must not abort the whole dump:
+        // fall back to an empty table instead.
+        try
         {
-            var functionName = ReadExportString(reader, namePointers[i]);
-            var ordinal = ordinals[i] + exportDir.Base;
-            var address = _info.Is64Bit 
-                ? ReadArray<ulong>(reader, functionAddresses[ordinals[i]], 1)[0] 
-                : ReadArray<uint>(reader, functionAddresses[ordinals[i]], 1)[0];
+            var exportOffset = Offset(_info.Directories[0].VirtualAddress ?? 0);
 
-            model.Functions.Add(new ExportFunction // <-- Exported Functions added
+            reader.BaseStream.Seek(exportOffset, SeekOrigin.Begin);
+            var exportDir = Fill<PeImageExportDirectory>(reader);
+            model.ExportDirectory = exportDir;
+
+            reader.BaseStream.Position = Offset(exportDir.Name);
+
+            var moduleName = ReadImportString(reader);
+            Debug.WriteLine(moduleName);
+
+            // Guard against absurd counts advertised by damaged images.
+            var functionCount = exportDir.NumberOfFunctions;
+            if (functionCount > 1000000)
+                return new ExportTable();
+
+            // Names can never exceed the number of function slots.
+            var nameCount = exportDir.NumberOfNames;
+            if (nameCount > functionCount)
+                nameCount = functionCount;
+
+            // RVA is always a 32-bit value regardless of PE32/PE32+.
+            var functionAddresses = ReadArray<uint>(reader, exportDir.AddressOfFunctions, functionCount);
+            var namePointers = ReadArray<uint>(reader, exportDir.AddressOfNames, nameCount);
+            var ordinals = ReadArray<ushort>(reader, exportDir.AddressOfNameOrdinals, nameCount);
+
+            // Built a name per ordinal slot; entries exported by ordinal only
+            // (present in the function table but missing a name) still appear.
+            var namesByIndex = new string[functionCount];
+            for (uint i = 0; i < functionCount; i++)
+                namesByIndex[i] = string.Empty;
+
+            for (uint i = 0; i < nameCount; i++)
             {
-                Name = functionName,
-                Ordinal = ordinal,
-                Address = address
-            });
+                var index = ordinals[i];
+                if (index < functionCount)
+                    namesByIndex[index] = ReadExportString(reader, namePointers[i]);
+            }
+
+            for (uint i = 0; i < functionCount; i++)
+            {
+                var functionName = namesByIndex[i].Length != 0
+                    ? namesByIndex[i]
+                    : "func_" + (exportDir.Base + i);
+
+                model.Functions.Add(new ExportFunction
+                {
+                    Name = functionName,
+                    Ordinal = exportDir.Base + i,
+                    Address = functionAddresses[i]
+                });
+            }
+
+            return model;
         }
-        
-        return model;
+        catch (Exception ex)
+        {
+            Debug.WriteLine("Exports error: " + ex.Message);
+            return new ExportTable();
+        }
     }
     
     /// <param name="reader"> <see cref="BinaryReader"/> instance </param>

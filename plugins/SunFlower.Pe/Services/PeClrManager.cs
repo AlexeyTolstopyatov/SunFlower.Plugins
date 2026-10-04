@@ -9,9 +9,9 @@ namespace SunFlower.Pe.Services;
 ///
 /// Licensed under MIT
 /// 
-public class PeClrManager(FileSectionsInfo info, string path) : DirectoryManager(info), IManager
+public class PeClrManager(ImageDetails info, string path) : DirectoryManager(info), IManager
 {
-    private readonly FileSectionsInfo _info = info;
+    private readonly ImageDetails _info = info;
     public Cor20Header Cor20Header { get; private set; }
     /// <summary>
     /// Entry Point
@@ -31,7 +31,7 @@ public class PeClrManager(FileSectionsInfo info, string path) : DirectoryManager
 
     private Cor20Header FillCor20Header(BinaryReader reader)
     {
-        var corOffset = Offset(_info.Directories[14].VirtualAddress);
+        var corOffset = Offset(_info.Directories[14].VirtualAddress ?? 0);
         reader.BaseStream.Seek(corOffset, SeekOrigin.Begin);
         var cor = Fill<Cor20Header>(reader);
 

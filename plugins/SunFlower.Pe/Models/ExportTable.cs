@@ -2,7 +2,7 @@
 
 namespace SunFlower.Pe.Models;
 
-public class PeExportTableModel
+public class ExportTable
 {
     public PeImageExportDirectory ExportDirectory { get; set; }
     public List<ExportFunction> Functions { get; set; } = [];

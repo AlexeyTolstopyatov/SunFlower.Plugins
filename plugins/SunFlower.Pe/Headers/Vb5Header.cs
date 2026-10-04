@@ -3,7 +3,7 @@
 namespace SunFlower.Pe.Headers;
 
 //
-// This information took from "Visual Basic Image Components".pdf
+// This information took from "Visual Basic ImageDetails Components".pdf
 // see in repo: https://github.com/AlexeyToltopyatov/JellyBins/JellyBins.Documents/
 //
 [StructLayout(LayoutKind.Sequential, Pack = 1)]

@@ -3,9 +3,9 @@ using SunFlower.Pe.Models;
 
 namespace SunFlower.Pe.Services;
 
-public class VbImageInfo(string path, long offset, Vb5Header vb5Header, FileSectionsInfo info)
+public class VbImageInfo(string path, long offset, Vb5Header vb5Header, ImageDetails info)
 {
-    public FileSectionsInfo Info { get; init; } = info;
+    public ImageDetails Info { get; init; } = info;
     public string Path { get; init; } = path;
     public Vb5Header Vb5Header { get; init; } = vb5Header;
     public long Vb5HeaderOffset { get; init; } = offset;
@@ -41,7 +41,7 @@ public class Vb5ProjectTablesManager : DirectoryManager
         string path, 
         long vbnewOffset, 
         Vb5Header header, 
-        FileSectionsInfo sectionsInfo) : base(sectionsInfo)
+        ImageDetails sectionsInfo) : base(sectionsInfo)
     {
         _imageBase = sectionsInfo.ImageBase;
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);

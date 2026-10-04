@@ -7,11 +7,11 @@ public class PeVbRuntime56Manager : DirectoryManager
 {
     public Vb5Header Vb5Header { get; }
     public long VbOffset => _vbanew;
-    private readonly FileSectionsInfo _info;
+    private readonly ImageDetails _info;
     private readonly BinaryReader _reader;
     private long _vbanew;
 
-    public PeVbRuntime56Manager(FileSectionsInfo info, BinaryReader reader) : base(info)
+    public PeVbRuntime56Manager(ImageDetails info, BinaryReader reader) : base(info)
     {
         _info = info;
         _reader = reader;

@@ -7,7 +7,7 @@ namespace SunFlower.Pe.Models;
 /// Important details about PE32/+
 /// for <see cref="PeExportsManager"/>
 /// </summary>
-public class FileSectionsInfo
+public class ImageDetails
 {
     public bool Is64Bit { get; set; }
     public uint NumberOfSections { get; set; }
@@ -21,6 +21,6 @@ public class FileSectionsInfo
     public uint BaseOfData { get; set; }
     
     public PeSection[] Sections { get; set; } = [];
-    public PeDirectory[] Directories { get; set; } = [];
+    public Directory[] Directories { get; set; } = [];
     public uint EntryPoint { get; set; }
 }

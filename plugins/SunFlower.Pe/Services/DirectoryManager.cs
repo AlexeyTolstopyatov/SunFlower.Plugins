@@ -1,6 +1,7 @@
 ﻿using SunFlower.Pe.Exceptions;
 using SunFlower.Pe.Headers;
 using SunFlower.Pe.Models;
+using Directory = SunFlower.Pe.Models.Directory;
 
 namespace SunFlower.Pe.Services;
 ///
@@ -14,12 +15,12 @@ namespace SunFlower.Pe.Services;
 /// <summary>
 /// Directory manager must init following toolchain
 /// </summary>
-public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
+public class DirectoryManager(ImageDetails info) : UnsafeManager
 {
     /// <returns> Directory exists when someone of 2 parameters not 0 </returns>
-    protected static bool IsDirectoryExists(PeDirectory dir)
+    protected static bool IsDirectoryExists(Directory dir)
     {
-        return dir.Size != 0 || dir.VirtualAddress != 0;
+        return dir is { Size: not null, VirtualAddress: not null };
     }
     /// <param name="rva"> Required RVA </param>
     /// <returns> File offset from RVA of selected section </returns>
@@ -34,14 +35,25 @@ public class DirectoryManager(FileSectionsInfo info) : UnsafeManager
     /// <returns> <see cref="PeSection"/> Which RVA belongs </returns>
     /// <exception cref="SectionNotFoundException"> If RVA not belongs to any section </exception>
     private PeSection Section(long rva)
-    {   // rva = {uint} 2019914798 
-        // rva = {long} 2019914798 
-        // RVA always 32-bit
-        var rva32 = Convert.ToUInt32(rva); // instead casting
+    {
+        // RVA is always a 32-bit value.
+        var rva32 = Convert.ToUInt32(rva);
+
         foreach (var section in info.Sections.OrderBy(s => s.VirtualAddress))
         {
-            if (rva32 >= section.VirtualAddress && 
-                rva32 < section.VirtualAddress + section.VirtualSize)
+            // Packed / unusual images often store VirtualSize == 0 while the
+            // section still maps raw bytes, so fall back on SizeOfRawData.
+            var spanSize = section.VirtualSize > section.SizeOfRawData
+                ? section.VirtualSize
+                : section.SizeOfRawData;
+
+            if (spanSize == 0)
+                continue;
+
+            // Compare in 64-bit to avoid uint overflow on VirtualAddress + size.
+            var start = Convert.ToUInt64(section.VirtualAddress);
+            var end = start + Convert.ToUInt64(spanSize);
+            if (Convert.ToUInt64(rva32) >= start && Convert.ToUInt64(rva32) < end)
             {
                 return section;
             }

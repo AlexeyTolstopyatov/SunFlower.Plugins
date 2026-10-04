@@ -32,7 +32,7 @@ public struct PeOptionalHeaderRom
     public UInt32 BaseOfBss;
     public UInt32 GprMask;
     [MarshalAs(UnmanagedType.LPArray, SizeConst = 4)] 
-    public UInt32[] CprMark;
+    public UInt32[] CprMask;
     public UInt32 GpValue;
 }
 
@@ -59,8 +59,7 @@ public struct PeOptionalHeader
     public UInt32 SizeOfUninitializedData;
     public UInt32 AddressOfEntryPoint;
     public UInt32 BaseOfCode;
-    public UInt32 BaseOfData;
-    public UInt32 ImageBase;
+    public UInt64 ImageBase;
     public UInt32 SectionAlignment;
     public UInt32 FileAlignment;
     public UInt16 MajorOperatingSystemVersion;
@@ -120,41 +119,47 @@ public struct PeOptionalHeader32
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
     public PeDirectory[] Directories;
 
-    public static PeOptionalHeader Into(ref PeOptionalHeader32 header)
+    /// <summary>
+    /// Widens a PE32 optional header into the PE32+ layout.
+    /// Only the stack/heap size fields differ (32-bit vs 64-bit), so the
+    /// remaining fields are copied one-to-one. The Data Directory table is
+    /// carried over as-is.
+    /// </summary>
+    public static PeOptionalHeader Into(ref PeOptionalHeader32 source)
     {
         return new PeOptionalHeader
         {
-            Magic = header.Magic,
-            MajorLinkerVersion = header.MajorLinkerVersion,
-            MinorLinkerVersion = header.MinorLinkerVersion,
-            SizeOfCode = header.SizeOfCode,
-            SizeOfInitializedData = header.SizeOfInitializedData,
-            SizeOfUninitializedData = header.SizeOfUninitializedData,
-            AddressOfEntryPoint = header.AddressOfEntryPoint,
-            BaseOfCode = header.BaseOfCode,
-            BaseOfData = header.BaseOfData,
-            ImageBase = header.ImageBase,
-            SectionAlignment = header.SectionAlignment,
-            FileAlignment = header.FileAlignment,
-            MajorOperatingSystemVersion = header.MajorOperatingSystemVersion,
-            MinorOperatingSystemVersion = header.MinorOperatingSystemVersion,
-            MajorImageVersion = header.MajorImageVersion,
-            MinorImageVersion = header.MinorImageVersion,
-            MajorSubsystemVersion = header.MajorSubsystemVersion,
-            MinorSubsystemVersion = header.MinorSubsystemVersion,
-            Win32VersionValue = header.Win32VersionValue,
-            SizeOfImage = header.SizeOfImage,
-            SizeOfHeaders = header.SizeOfHeaders,
-            CheckSum = header.CheckSum,
-            Subsystem = header.Subsystem,
-            DllCharacteristics = header.DllCharacteristics,
-            SizeOfStackReserve = header.SizeOfStackReserve,
-            SizeOfStackCommit = header.SizeOfStackCommit,
-            SizeOfHeapReserve = header.SizeOfHeapReserve,
-            SizeOfHeapCommit = header.SizeOfHeapCommit,
-            LoaderFlags = header.LoaderFlags,
-            NumberOfRvaAndSizes = header.NumberOfRvaAndSizes,
-            Directories = header.Directories,
+            Magic = source.Magic,
+            MajorLinkerVersion = source.MajorLinkerVersion,
+            MinorLinkerVersion = source.MinorLinkerVersion,
+            SizeOfCode = source.SizeOfCode,
+            SizeOfInitializedData = source.SizeOfInitializedData,
+            SizeOfUninitializedData = source.SizeOfUninitializedData,
+            AddressOfEntryPoint = source.AddressOfEntryPoint,
+            BaseOfCode = source.BaseOfCode,
+            // PE32+ has no BaseOfData; ImageBase widens from 32 to 64 bits.
+            ImageBase = source.ImageBase,
+            SectionAlignment = source.SectionAlignment,
+            FileAlignment = source.FileAlignment,
+            MajorOperatingSystemVersion = source.MajorOperatingSystemVersion,
+            MinorOperatingSystemVersion = source.MinorOperatingSystemVersion,
+            MajorImageVersion = source.MajorImageVersion,
+            MinorImageVersion = source.MinorImageVersion,
+            MajorSubsystemVersion = source.MajorSubsystemVersion,
+            MinorSubsystemVersion = source.MinorSubsystemVersion,
+            Win32VersionValue = source.Win32VersionValue,
+            SizeOfImage = source.SizeOfImage,
+            SizeOfHeaders = source.SizeOfHeaders,
+            CheckSum = source.CheckSum,
+            Subsystem = source.Subsystem,
+            DllCharacteristics = source.DllCharacteristics,
+            SizeOfStackReserve = source.SizeOfStackReserve,
+            SizeOfStackCommit = source.SizeOfStackCommit,
+            SizeOfHeapReserve = source.SizeOfHeapReserve,
+            SizeOfHeapCommit = source.SizeOfHeapCommit,
+            LoaderFlags = source.LoaderFlags,
+            NumberOfRvaAndSizes = source.NumberOfRvaAndSizes,
+            Directories = source.Directories
         };
-    } 
+    }
 }
