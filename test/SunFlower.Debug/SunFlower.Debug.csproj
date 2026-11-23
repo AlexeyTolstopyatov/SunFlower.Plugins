@@ -8,7 +8,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\plugins\SunFlower.Elf\SunFlower.Elf.csproj" />
       <ProjectReference Include="..\..\plugins\SunFlower.Le\SunFlower.Le.csproj" />
+      <ProjectReference Include="..\..\plugins\SunFlower.Pe\SunFlower.Pe.csproj" />
     </ItemGroup>
 
 </Project>

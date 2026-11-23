@@ -1,17 +1,15 @@
-﻿using System.Runtime.InteropServices;
-
-namespace SunFlower.Le.Headers.Lx;
+﻿namespace SunFlower.Le.Headers.Lx;
 
 
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct Object(uint virtualSegmentSize, uint relocationBase, uint objectFlagsMask, uint pageMap, uint pageMapEntries, uint unknown)
+public class Object(FileObject o)
 {
-    public uint VirtualSegmentSize = virtualSegmentSize;
-    public uint RelocationBaseAddress = relocationBase;
-    public uint ObjectFlagsMask = objectFlagsMask;
-    public uint PageMapIndex = pageMap;
-    public uint PageMapEntries = pageMapEntries;
-    public uint Unknown = unknown; // or Reserved
+    public readonly uint VirtualSegmentSize = o.VirtualSegmentSize;
+    public readonly uint RelocationBaseAddress = o.RelocationBaseAddress;
+    public readonly uint ObjectFlagsMask = o.ObjectFlagsMask;
+    public readonly uint PageMapIndex = o.PageMapIndex;
+    public readonly uint PageMapEntries = o.PageMapEntries;
+    public uint Unknown = o.Unknown; // or Reserved
+    
     public string[] ObjectFlags => new []
     {
         (ObjectFlagsMask & 0x0020) != 0 ? "SHARED" : "SINGLE", // LX

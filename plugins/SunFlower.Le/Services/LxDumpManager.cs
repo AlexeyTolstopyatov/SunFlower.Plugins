@@ -11,9 +11,9 @@ public class LxDumpManager : UnsafeManager
     public ExportRecord[] ResidentNames { get; }
     public ExportRecord[] NonResidentNames { get; }
     public EntryBundle[] EntryBundles { get; }
-    public Headers.Lx.Object[] Objects { get; }
+    public FileObject[] Objects { get; }
     public ObjectPage[] Pages { get; }
-    public LeFixupRecord[] FixupRecords { get; }
+    public FixupRecord[] FixupRecords { get; }
     public FixupPageRecord[] FixupPageOffsets { get; }
     public ImportRecord[] ImportRecords { get; }
     private uint _offset;
@@ -43,7 +43,15 @@ public class LxDumpManager : UnsafeManager
         var pagesTable = new LxPagesManager(reader, Offset(LxHeader.e32_objmap), LxHeader.e32_mpages);
         var fixupPageOffsets = new FixupPagesManager(reader, Offset(LxHeader.e32_fpagetab), LxHeader.e32_mpages).GetFixupPageOffsets();
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LxHeader.e32_frectab), fixupPageOffsets);
-        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, importNames.ImportingModules.ToArray(), Offset(LxHeader.e32_impproc));
+        
+        var pageFileOffsets = pagesTable.Pages
+            .Select(p => LxHeader.e32_datapage + ((long)p.PageOffset << (int)LxHeader.e32_pageshift))
+            .ToList();
+
+        var expandedFixupRecords = FixupChainExpander.Expand(
+            fixupRecords, reader, pageFileOffsets);
+        
+        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, expandedFixupRecords, importNames.ImportingModules.ToArray(), Offset(LxHeader.e32_impproc));
         
         NonResidentNames = [..namesTables.NonResidentNames];
         ResidentNames = [..namesTables.ResidentNames];
@@ -51,24 +59,9 @@ public class LxDumpManager : UnsafeManager
         Objects = [..objectTable.Objects];
         FixupPageOffsets = [..fixupPageOffsets];
         Pages = [..pagesTable.Pages];
-        FixupRecords = [..fixupRecords];
+        FixupRecords = [..expandedFixupRecords];
         ImportRecords = [..imports];
         
         reader.Close();
-    }
-
-    public long GetPhysicalOffset(int objectNumber, long rva)
-    {
-        // file_offset = page_data_off + offset_in_page;
-        // 0: Legal physical page (preload/demand). File offset = data_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
-        // 1: Iterated data page. File offset = object_iter_pages_offset + (PAGE_DATA_OFFSET << page_offset_shift).
-        if (Pages.Length == 0 || Objects.Length == 0) 
-            return 0;
-        if (objectNumber == 0)
-            return 0;
-        
-        var pageNumber = Objects[objectNumber - 1].PageMapIndex;
-        var pageOffset = Pages[(int)pageNumber - 1].PageOffset;
-        return LxHeader.e32_datapage + (pageOffset << (int)LxHeader.e32_pageshift) + rva;
     }
 }

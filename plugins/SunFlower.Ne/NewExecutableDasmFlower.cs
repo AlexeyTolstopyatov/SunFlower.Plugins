@@ -7,11 +7,12 @@
 // @creator: atolstopyatov2017@vk.com
 //
 using SunFlower.Abstractions;
+using Sunflower.Dasm.Intel.Core;
 using SunFlower.Ne.Services;
 
 namespace SunFlower.Ne;
 
-[Flower(FlowerTarget.Code)]
+[Flower(FlowerTarget.Code, "asm")]
 [FlowerVersionContract(5, 0, 0)]
 public class NewExecutableDasmFlower : IFlower
 {
@@ -21,7 +22,7 @@ public class NewExecutableDasmFlower : IFlower
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {
         var dumpManager = new NeDumpManager(filePath);
-        const NeInstructionSet set = NeInstructionSet.Intel286; // Later define the CPU flags correct
+        ProcessorMode set = ProcessorMode.I286;
 
         var decoder = new NeDecoderService(filePath, dumpManager, set);
         

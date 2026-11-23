@@ -31,7 +31,7 @@ public class PeClrManager(ImageDetails info, string path) : DirectoryManager(inf
 
     private Cor20Header FillCor20Header(BinaryReader reader)
     {
-        var corOffset = Offset(_info.Directories[14].VirtualAddress ?? 0);
+        var corOffset = Offset(_info.Directories[14].VirtualAddress);
         reader.BaseStream.Seek(corOffset, SeekOrigin.Begin);
         var cor = Fill<Cor20Header>(reader);
 

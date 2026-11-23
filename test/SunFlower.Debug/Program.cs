@@ -1,54 +1,52 @@
 ﻿using SunFlower.Le.Services;
+using SunFlower.Pe.Services;
 
 namespace SunFlower.Debug;
 
 class Program
 {
-    /// <summary>
-    /// Debug harness for the Linear Executable decoders.
-    /// Usage: SunFlower.Debug [path] [le|lx] [nodata] [nostrings] [noprologues]
-    /// </summary>
     static void Main(string[] args)
     {
-        var dest = args.Length > 0 ? args[0] : @"D:\TEST\MS_OS220\DOSCALL1.DLL";
-        // Linear executable object format modification/revision 
-        var modification = (args.Length > 1 ? args[1] : "le").ToLowerInvariant();
+        //DecodeWindows9xExecutable();
+        //DecodeOs2Executable();
+        DecodeElf32();
+    }
 
-        var analyzeData = !args.Any(a => a.Equals("nodata", StringComparison.OrdinalIgnoreCase));
-        var dumpStrings = !args.Any(a => a.Equals("nostrings", StringComparison.OrdinalIgnoreCase));
-        var discoverProcedures = !args.Any(a => a.Equals("noprologues", StringComparison.OrdinalIgnoreCase));
+    private static void DecodeOs2Executable()
+    {
+        var dest = @"D:\TEST\IBM_OS220\DOSCALL1.DLL";
 
-        string[] res;
+        var decoder = DecoderServiceFactory.Create(dest, new LxDumpManager(dest));
+        var result = decoder.Disassemble();
+        
+        File.WriteAllLines(Path.Combine("D:\\", Path.GetFileNameWithoutExtension(dest)), result);
+    }
 
-        if (modification == "lx")
-        {
-            var dump = new LxDumpManager(dest);
-            var service = new LxDecoderService(dest, dump)
-            {
-                AnalyseDataObjects = analyzeData,
-                DumpStrings = dumpStrings,
-                DiscoverDataProcedures = discoverProcedures
-            };
+    private static void DecodeElf32()
+    {
+        var dest = @"D:\TEST\Cent6.5-386\cat";
 
-            res = service.Disassemble();
-        }
-        else
-        {
-            var dump = new LeDumpManager(dest);
-            var service = new LeDecoderService(dest, dump)
-            {
-                AnalyseDataObjects = analyzeData,
-                DumpStrings = dumpStrings,
-                DiscoverDataProcedures = discoverProcedures
-            };
+        var decoder = new Elf.Services.ElfDecoderService(dest, new Elf.Services.ElfDumpManager(dest));
+        var result = decoder.Disassemble();
+        
+        File.WriteAllLines(Path.Combine("D:\\", Path.GetFileNameWithoutExtension(dest)), result);
+    }
 
-            res = service.Disassemble();
-        }
+    private static void DecodeWindows9xExecutable()
+    {
+        var dest = @"C:\Users\atvlg\OneDrive\Desktop\winhlp32.exe";
+        
+        var dump = new PeDumpManager(dest);
+        var imports = new PeImportsManager(dump.ImageDetails, dest);
+        var exports = new PeExportsManager(dump.ImageDetails, dest);
+        var relocs = new PeBaseRelocationManager(dump.ImageDetails, dest);
+        
+        imports.Dump();
+        exports.Dump();
 
-        var outName = Path.GetFileNameWithoutExtension(dest) + (modification == "lx" ? "_LX.asm" : "_LE.asm");
-        var outPath = Path.Combine(AppContext.BaseDirectory, outName);
-
-        File.WriteAllText(outPath, string.Join("\n", res));
-        Console.WriteLine($"[OK] lines={res.Length} -> {outPath}");
+        var decoder = new PeDecoderService(dest, dump, imports, exports, relocs);
+        var strings = decoder.Disassemble();
+        
+        File.WriteAllLines(Path.Combine("D:\\", Path.GetFileNameWithoutExtension(dest)), strings);
     }
 }

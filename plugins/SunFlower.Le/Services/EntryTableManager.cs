@@ -74,8 +74,12 @@ public class EntryTableManager(
             var type = (EntryBundleType?)(typeValue & 0x7F) ?? 0;
 
             ushort objNumber = 0;
+            
             if (type != EntryBundleType.Unused && type != EntryBundleType.Forwarder)
                 objNumber = reader.ReadUInt16();
+            
+            else if (type == EntryBundleType.Forwarder)
+                _ = reader.ReadUInt16();
             
             var bundle = new EntryBundle
             {
@@ -124,7 +128,7 @@ public class EntryTableManager(
                     case EntryBundleType.Forwarder:
                         var fwd = new EntryForwarder
                         {
-                            Reserved = reader.ReadUInt16(),
+                            Reserved = 0, // <- Already read in the bundle header.
                             Flags = reader.ReadByte(),
                             ModuleOrdinal = reader.ReadUInt16(),
                             OffsetOrOrdinal = reader.ReadUInt32(),

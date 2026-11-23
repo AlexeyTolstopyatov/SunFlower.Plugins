@@ -6,20 +6,21 @@
 // @creator: atolstopyatov2017@vk.com
 
 using SunFlower.Abstractions;
+using Sunflower.Dasm.Intel.Core;
 using Sunflower.Mz.Services;
 
 namespace Sunflower.Mz;
 
-[Flower(FlowerTarget.Code)]
+[Flower(FlowerTarget.Code, "asm")]
 [FlowerVersionContract(5,0,0)]
 public class Dos286DasmFlower : IFlower
 {
-    [Seed("", "")] 
+    [Seed] 
     public string[] Result = [];
     
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {
-        var decoderFactory = new DecoderFactory(InstructionSet.I80286);
+        var decoderFactory = new DecoderFactory(ProcessorMode.I286);
         Result = decoderFactory.Decode(filePath);
     });
 

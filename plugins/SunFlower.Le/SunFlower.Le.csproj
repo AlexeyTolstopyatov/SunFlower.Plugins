@@ -16,6 +16,9 @@
     <Reference Include="Sunflower.Dasm">
       <HintPath>..\..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
     </Reference>
+    <Reference Include="FSharp.Core">
+      <HintPath>..\SunFlower.Ne\bin\Debug\net8.0\FSharp.Core.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Update="..\..\..\SunFlower\src\Sunflower.Dasm\opcodes286.json">

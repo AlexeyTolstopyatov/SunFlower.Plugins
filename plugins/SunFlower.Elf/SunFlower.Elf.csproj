@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Version>1.0.0.0</Version>
+        <Title>Executable and Linkable Format static analysis</Title>
+        <Description>Makes dump and disassembly of ELF32/ELF64 objects and executables</Description>
+        <Copyright>CoffeeLake 2026</Copyright>
+        <AssemblyVersion>1.0.0.0</AssemblyVersion>
+        <FileVersion>1.0.0.0</FileVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="SunFlower.Abstractions">
+        <HintPath>..\\..\\..\\SunFlower\\src\\SunFlower.Client\\bin\\Debug\\net8.0\\SunFlower.Abstractions.dll</HintPath>
+      </Reference>
+      <Reference Include="Sunflower.Dasm">
+        <HintPath>..\\..\\..\\SunFlower\\src\\Sunflower.Dasm\\bin\\Debug\\net8.0\\Sunflower.Dasm.dll</HintPath>
+      </Reference>
+      <Reference Include="FSharp.Core">
+        <HintPath>D:\\Locals\\SunFlower\\src\\SunFlower.Client\\bin\\Debug\\net8.0\\FSharp.Core.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="..\\..\\..\\SunFlower\\src\\Sunflower.Dasm\\opcodes386.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+</Project>

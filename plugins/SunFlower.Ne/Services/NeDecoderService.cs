@@ -1,81 +1,137 @@
-//
 // CoffeeLake (C) 2026-*
 //
-// The NeDecoderService.cs represents NE disassembler which uses
-// Intel 286/386 decoder API and knowledge base from NewExecutableSeed.
+// NE decoder rewritten on LE principles (DecoderServiceBase):
+//   - per-segment (.CODE) analysis instead of flat image
+//   - export map from entry table bundles (ordinal -> symbol)
+//   - fixup map from per-segment relocations (offset -> symbol)
+//   - analysis loop: decode -> discover far targets -> re-decode (max 8 passes)
+//   - operand analysis with fixup substitution using structured models
+//     (DecodedInstruction / DecodedOperand / OperandPart) - NO regular expressions
 //
-// Strategy:
-//  1. Build flat memory image from all .CODE segments (via NeFlatImageBuilder)
-//  2. Resolve internal relocations so far-call/jump targets become flat addresses
-//  3. Disassemble recursively from ALL entry points at once (decodeRecursive)
-//  4. Post-process: for every entry point offset, ensure there's a label.
-//     Main entry (CS:IP from header) gets "main:" label.
-//     Export entries get their symbol name.
-//     Other entries get "entry_0xSEG:".
-//  5. Convert flat addresses back to segment:offset for human readability.
+// No factory. No regexes during analysis.
 //
 // @local_machine: atvlg
 // @creator: atolstopyatov2017@vk.com
 //
 
-using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
-using Sunflower.Dasm;
+using Sunflower.Dasm.Intel.Core;
+using Decoder = Sunflower.Dasm.Intel.Core.Decoder;
+using SunFlower.Ne.Headers;
+using SunFlower.Ne.Models;
 
 namespace SunFlower.Ne.Services;
 
-public enum NeInstructionSet
-{
-    Intel286,
-    Intel386
-}
 
-public class NeDecoderService
+public sealed class NeDecoderService
 {
+    private sealed class FixupSite
+    {
+        public readonly int Segment;
+        public readonly int Offset;
+        public readonly int Size;
+        public readonly string Symbol;
+
+        public FixupSite(int segment, int offset, int size, string symbol)
+        {
+            Segment = segment;
+            Offset = offset;
+            Size = size;
+            Symbol = symbol;
+        }
+    }
+
+    private sealed record AnalysedOperand(string Text);
+
+    private sealed record AnalysedInstruction(
+        DecodedInstruction Instr,
+        string? Label,
+        bool IsEntryPoint,
+        bool IsCallTarget,
+        IReadOnlyList<AnalysedOperand> Operands,
+        IReadOnlyList<FixupSite> AllFixups);
+
     private readonly NeDumpManager _dump;
     private readonly string _filePath;
-    private readonly NeInstructionSet _set;
+    private readonly ProcessorMode _mode;
+    private readonly int _alignmentShift;
 
-    // export ordinal -> symbol name
-    private readonly Dictionary<int, string> _exportByName = [];
-    // Main entry flat address (CS:IP from header)
-    private int _mainEntryFlat = -1;
-
+    private string InterruptMap => Path.Combine(AppContext.BaseDirectory, "Interrupt", "dos.json");
+    private string OpcodeMap => Path.Combine(AppContext.BaseDirectory, "opcodes286.json");
+    private string ExtendedOpcodeMap = Path.Combine(AppContext.BaseDirectory, "opcodes386.json");
+    
+    private readonly Dictionary<int, string> _exportByOrdinal = [];
+    private readonly Dictionary<(int seg, int off), FixupSite> _fixupAt = [];
     private readonly List<string> _results = [];
-    private FlatImageResult _flat = null!;
 
-    public NeDecoderService(string filePath, NeDumpManager dump, NeInstructionSet set)
+    public NeDecoderService(string filePath, NeDumpManager dump, ProcessorMode set)
     {
         _filePath = filePath;
         _dump = dump;
-        _set = set;
-        BuildExportTable();
+        _mode = set;
+        _alignmentShift = dump.NeHeader.NE_Alignment == 0 ? 9 : dump.NeHeader.NE_Alignment;
+
+        BuildExportMap();
+        BuildFixupMap();
     }
 
-    private void BuildExportTable()
+    public string[] Decode()
+    {
+        var cpuName = _mode.Equals(ProcessorMode.I386) ? "Intel 80386" : "Intel 80286";
+        _results.AddRange([
+            $"; SunFlower.NE.dll for NE executables (at {DateTime.UtcNow:u})",
+            $"; Disassembled using {cpuName} instruction set",
+            ";"
+        ]);
+
+        PrintEntryPoints();
+
+        foreach (var segment in _dump.Segments
+                     .Where(s => s.Type == ".CODE")
+                     .OrderBy(s => s.SegmentNumber))
+        {
+            TranslateSegment(segment);
+        }
+
+        return _results.ToArray();
+    }
+
+    private void PrintEntryPoints()
+    {
+        if (_exportByOrdinal.Count == 0) return;
+
+        var exports = _exportByOrdinal
+            .OrderBy(x => x.Key)
+            .Select(x => $";     [{x.Key}] {x.Value}");
+
+        _results.Add("; Export procedures");
+        _results.AddRange(exports);
+        _results.Add(";");
+    }
+
+    private void BuildExportMap()
     {
         var ordinal = 1;
-        foreach (var ep in _dump.EntryBundles.SelectMany(bundle => bundle.EntryPoints))
+        foreach (var ep in _dump.EntryBundles.SelectMany(b => b.EntryPoints))
         {
             if (ep.Type == "[UNUSED]")
             {
-                ordinal++; 
+                ordinal++;
                 continue;
             }
+
             var name = FindExportNameByOrdinal(ordinal);
-            // Important: 
-            // Export names night be unsafe (OS/2 application might contain C++ abi or unreadable ASCII)
-            _exportByName[ordinal] = string.IsNullOrEmpty(name) ? $"_@{ordinal}" : SanitizeSymbol(name);
+            _exportByOrdinal[ordinal] =
+                string.IsNullOrEmpty(name) ? $"@{ordinal}" : SanitizeSymbol(name);
+
             ordinal++;
         }
     }
 
     private string? FindExportNameByOrdinal(int ordinal)
     {
-        var name = _dump.ResidentNames.FirstOrDefault(n => n.Ordinal == ordinal).String ?? 
-                   _dump.NonResidentNames.FirstOrDefault(n => n.Ordinal == ordinal).String;
-        return name;
+        return _dump.ResidentNames.FirstOrDefault(n => n.Ordinal == ordinal).String ??
+               _dump.NonResidentNames.FirstOrDefault(n => n.Ordinal == ordinal).String;
     }
 
     private static string SanitizeSymbol(string s)
@@ -88,269 +144,445 @@ public class NeDecoderService
             else
                 sb.Append('_');
         }
+
         var result = sb.ToString().Trim('_');
         return string.IsNullOrEmpty(result) ? "sym" : result;
     }
 
-    public string[] Decode()
+    private void BuildFixupMap()
     {
-        var cpuName = _set switch
+        foreach (var segment in _dump.Segments)
         {
-            NeInstructionSet.Intel286 => "Intel 80286",
-            NeInstructionSet.Intel386 => "Intel 80386",
-            _ => "Intel 80x86"
-        };
+            foreach (var rel in segment.Relocations)
+            {
+                var size = GetFixupSize(rel.AddressType);
+                if (size <= 0) continue;
 
-        _results.AddRange([
-            $"; SunFlower.NE.dll for NE executables (at {DateTime.UtcNow})",
-            $"; Disassembled using {cpuName} instruction set",
-            ";"
-        ]);
+                string? symbol = null;
 
-        PrintEntryPoints();
+                if (rel.RelocationType.Equals("Import", StringComparison.OrdinalIgnoreCase))
+                {
+                    symbol = ResolveImportSymbol(rel);
+                }
+                else if (rel.RelocationType.Equals("Internal", StringComparison.OrdinalIgnoreCase))
+                {
+                    symbol = ResolveInternalSymbol(rel);
+                }
 
-        var builder = new NeFlatImageBuilder(_dump);
-        builder.SetExportNames(_exportByName);
-        _flat = builder.Build();
+                if (symbol is null) continue;
 
-        if (_flat.Size == 0)
+                _fixupAt[((int)rel.SegmentNumber, rel.OffsetInSegment)] =
+                    new FixupSite((int)rel.SegmentNumber, rel.OffsetInSegment, size, symbol);
+            }
+        }
+    }
+
+    private static int GetFixupSize(byte addressType) => addressType switch
+    {
+        0 => 1, // LowByte
+        2 => 2, // Segment 16
+        3 => 4, // 16:16
+        5 => 2, // Offset16
+        _ => 2
+    };
+
+    private string? ResolveImportSymbol(Relocation rel)
+    {
+        if (rel.Ordinal > 0)
         {
-            _results.Add("; ERROR: No .CODE segments found or flat image is empty.");
-            return _results.ToArray();
+            foreach (var (_, imports) in _dump.ImportModels)
+            {
+                var match = imports.FirstOrDefault(i =>
+                    i.ModuleIndex == rel.ModuleIndex && i.Ordinal == "@" + rel.Ordinal);
+                
+                if (match != null)
+                    return $"{match.Module}::{match.Ordinal}";
+            }
+            return $"::?@{rel.Ordinal}";
         }
 
-        // Determine main entry flat address
+        if (rel.NameOffset > 0)
+        {
+            foreach (var (_, imports) in _dump.ImportModels)
+            {
+                var match = imports.FirstOrDefault(i =>
+                    i.ModuleIndex == rel.ModuleIndex && i.NameOffset == rel.NameOffset);
+                if (match != null)
+                    return $"{match.Module}::{match.Procedure}";
+            }
+            return $"module[{rel.ModuleIndex}]::name_0x{rel.NameOffset:X4}";
+        }
+
+        return null;
+    }
+
+    private string ResolveInternalSymbol(Relocation rel)
+    {
+        if (rel.SegmentType == 0xFF)
+        {
+            var name = FindExportNameByOrdinal(rel.Target);
+            return string.IsNullOrEmpty(name) ? $"@{rel.Target}" : SanitizeSymbol(name);
+        }
+
+        return $"::{ProcedurePrefix}_0x{rel.SegmentType:X4}{rel.Target:X4}";
+    }
+
+    private void TranslateSegment(SegmentModel segment)
+    {
+        var bytes = ReadSegmentBytes(segment);
+        if (bytes.Length == 0) return;
+
+        var entryPoints = CollectEntryPoints(segment, bytes);
+
+        var (instructions, entrySet, _) = RunAnalysisLoop(bytes, entryPoints);
+
+        var analysed = AnalyseInstructions((int)segment.SegmentNumber, instructions, entrySet);
+        RenderSegment((int)segment.SegmentNumber, bytes, analysed);
+    }
+
+    private byte[] ReadSegmentBytes(SegmentModel segment)
+    {
+        var physicalOffset = (int)segment.FileOffset * (1 << _alignmentShift);
+        var length = (int)segment.FileLength;
+        
+        if (length == 0) 
+            return [];
+
+        var bytes = new byte[length];
+        using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+        fs.Position = physicalOffset;
+        var read = fs.Read(bytes, 0, length);
+        if (read < length)
+            Array.Resize(ref bytes, read);
+        return bytes;
+    }
+
+    private SortedSet<int> CollectEntryPoints(SegmentModel segment, byte[] bytes)
+    {
+        var entryPoints = new SortedSet<int>();
+
         var mainCs = _dump.NeHeader.NE_CsIp >> 16;
-        var mainIp = _dump.NeHeader.NE_CsIp & 0xFFFF;
-        _mainEntryFlat = _flat.SegmentBase.TryGetValue(mainCs, out var baseAddr) ? baseAddr + (int)mainIp : -1;
-
-        string mainDisassembly;
-        try
+        var mainIp = (int)(_dump.NeHeader.NE_CsIp & 0xFFFF);
+        if (segment.SegmentNumber == mainCs && mainIp >= 0 && mainIp < bytes.Length)
+            entryPoints.Add(mainIp);
+    
+        foreach (var entry in _dump.EntryBundles.SelectMany(b => b.EntryPoints))
         {
-            var allEntryPoints = _flat.FlatEntryPoints.Length > 0 
-                ? _flat.FlatEntryPoints 
-                : [0];
+            if (entry.Segment != segment.SegmentNumber) continue;
             
-            mainDisassembly = _set switch
-            {
-                NeInstructionSet.Intel286 =>
-                    I80286Decoder.decodeRecursive("", _flat.Image, allEntryPoints),
-                NeInstructionSet.Intel386 =>
-                    I80386Decoder.decodeRecursive("", _flat.Image, allEntryPoints),
-                _ => throw new InvalidOperationException("Unsupported instruction set")
-            };
-        }
-        catch (Exception ex)
-        {
-            _results.Add($";     FATAL DECODE ERROR: {ex.Message}");
-            return _results.ToArray();
-        }
-
-        var annotated = AnnotateFlat(mainDisassembly);
-        _results.Add(annotated);
-
-        return _results.ToArray();
-    }
-
-    private void PrintEntryPoints()
-    {
-        if (_exportByName.Count > 0)
-        {
-            var exports = new List<string>();
-            foreach (var (ord, name) in _exportByName.OrderBy(x => x.Key))
-                exports.Add($";     [{ord}] {name}");
-            
-            _results.Add("; Export procedures ");
-            _results.AddRange(exports);
-            _results.Add(";");
-        }
-    }
-
-    /// <summary>
-    /// Extracts the flat instruction offset from a disassembly line.
-    /// Format from decoder: "0xADDR  [bytes]  MNEMONIC operands"
-    /// Returns -1 if line is a label or invalid.
-    /// </summary>
-    private static int ExtractOffset(string line)
-    {
-        // Label lines: "__0xADDR:" or "p_0xADDR:" or spaces then label
-        if (Regex.IsMatch(line, @"(?:__|p_|entry_)0x[0-9A-Fa-f]+:"))
-            return -1;
-
-        // Comment lines or header
-        if (line.TrimStart().StartsWith(";"))
-            return -1;
-
-        // Instruction line: starts with offset
-        var m = Regex.Match(line, @"\s*0x([0-9A-Fa-f]+)\s"); // inverse ^\s*0x([0-9A-Fa-f]+)\s
-        if (m.Success && int.TryParse(m.Groups[1].Value,
-            System.Globalization.NumberStyles.HexNumber, null, out var off))
-            return off;
-
-        return -1;
-    }
-
-    /// <summary>
-    /// Post-processes the raw disassembly text:
-    /// Ensures every entry point has a label (inserted if missing)
-    /// Main entry gets "main:" label
-    /// Export entries get their symbol name
-    /// Converts flat offsets back to segment:offset comments
-    /// </summary>
-    private string AnnotateFlat(string disassembly)
-    {
-        var lines = disassembly.Split('\n');
-        var entryFlatOrdered = _flat.FlatEntryPoints.OrderBy(e => e).ToArray();
-
-        // Detect which offsets already have labels
-        var existingLabels = new HashSet<int>();
-        foreach (var rawLine in lines)
-        {
-            var line = rawLine.TrimEnd('\r');
-            var m = Regex.Match(line, @"(?:__|p_|entry_)0x([0-9A-Fa-f]+)\s*:");
-            if (m.Success)
-                existingLabels.Add(Convert.ToInt32(m.Groups[1].Value, 16));
-        }
-
-        // Entry points that need a label forcibly inserted
-        var needLabel = entryFlatOrdered.Where(e => !existingLabels.Contains(e)).ToList();
-
-        // Step 2: Insert missing labels before their instruction
-        var resultLines = new List<string>();
+            var off = entry.Offset;
+            if (off < bytes.Length)
+                entryPoints.Add(off);
         
-        var insertedLabels = new HashSet<int>();
-        var remaining = new List<int>(needLabel);
-        
-        var lastOffset = -1;
+        }
 
-        foreach (var rawLine in lines)
+        return entryPoints;
+    }
+
+    private (IReadOnlyList<DecodedInstruction> instructions, SortedSet<int> entrySet, int followed)
+        RunAnalysisLoop(byte[] bytes, SortedSet<int> entryPoints)
+    {
+        IReadOnlyList<DecodedInstruction> result = [];
+        var entrySet = new SortedSet<int>();
+        var followed = 0;
+
+        for (var pass = 0; pass < 8; pass++)
         {
-            var line = rawLine.TrimEnd('\r');
+            var (instrs, entries) = DecodeBytes(bytes, [.. entryPoints]);
 
-            // Check if this is a label line -> skip insertion checks for these
-            if (Regex.IsMatch(line, @"(?:__|p_|entry_)0x[0-9A-Fa-f]+:"))
-            {
-                resultLines.Add(line);
+            var farTargets = CollectFarTargets(instrs, bytes);
+            var discovered = farTargets.Count(entryPoints.Add);
+            followed += discovered;
+
+            result = instrs;
+            entrySet = entries;
+
+            if (discovered == 0) break;
+        }
+
+        return (result, entrySet, followed);
+    }
+
+    private (IReadOnlyList<DecodedInstruction> instructions, SortedSet<int> entries)
+        DecodeBytes(byte[] bytes, int[] entryPoints)
+    {
+        var opcodeMap = _mode.Equals(ProcessorMode.I386) 
+            ? ExtendedOpcodeMap 
+            : OpcodeMap;
+        
+        var state = Decoder.create(opcodeMap, InterruptMap, _mode);
+        var (list, _, _) = Decoder.runRecursive(state, bytes, entryPoints);
+
+        return (list, []);
+    }
+
+    private static HashSet<int> CollectFarTargets(
+        IReadOnlyList<DecodedInstruction> instructions, byte[] bytes)
+    {
+        var result = new HashSet<int>();
+
+        foreach (var instr in instructions)
+        foreach (var op in instr.Operands)
+        {
+            if (op.Part is not OperandPart.Far far) 
                 continue;
-            }
-
-            var offset = ExtractOffset(line);
-
-            if (offset >= 0)
-            {
-                // Insert all pending entry points with offset <= current offset
-                foreach (var epOff in remaining.OrderBy(o => o).ToArray())
-                {
-                    if (offset >= epOff && !insertedLabels.Contains(epOff))
-                    {
-                        resultLines.Add(BuildEntryLabel(epOff));
-                        insertedLabels.Add(epOff);
-                        remaining.Remove(epOff);
-                    }
-                }
-                lastOffset = offset;
-            }
-
-            resultLines.Add(line);
+            
+            var targetOff = unchecked((int)far.Item2);
+            if (targetOff > 0 && targetOff < bytes.Length && !IsZeroRun(bytes, targetOff))
+                result.Add(targetOff);
         }
 
-        // Handle remaining entry labels past end of decoded code
-        foreach (var epOff in remaining.Where(epOff => !insertedLabels.Contains(epOff)))
+        return result;
+    }
+
+    private static bool IsZeroRun(byte[] bytes, int off) =>
+        bytes[off] == 0 && off + 1 < bytes.Length && bytes[off + 1] == 0;
+    
+    private List<AnalysedInstruction> AnalyseInstructions(
+        int segmentNumber,
+        IReadOnlyList<DecodedInstruction> instructions,
+        SortedSet<int> entrySet)
+    {
+        var callTargets = new HashSet<int>(
+            instructions
+                .Where(i => i.Flow.Equals(FlowControl.Call))
+                .SelectMany(i => i.Targets));
+
+        var result = new List<AnalysedInstruction>(instructions.Count);
+
+        foreach (var instr in instructions)
         {
-            resultLines.Add(BuildEntryLabel(epOff) + " ; (unreachable)");
-            insertedLabels.Add(epOff);
+            var label = ResolveLabel(segmentNumber, instr.Offset, entrySet);
+            var instrFixups = CollectFixupsForRange(segmentNumber, instr.Offset, instr.Length);
+            var analysedOps = new List<AnalysedOperand>(instr.Operands.Length);
+
+            analysedOps.AddRange(
+                from op in instr.Operands
+                let opFixup = FindFixupForOperand(instr.Offset, op, instrFixups)
+                let text = FormatOperandWithSubstitution(instr, op, opFixup, _mode)
+                select new AnalysedOperand(text)
+            );
+
+            result.Add(new AnalysedInstruction(
+                instr,
+                label,
+                entrySet.Contains(instr.Offset),
+                callTargets.Contains(instr.Offset),
+                analysedOps,
+                instrFixups));
         }
 
+        return result;
+    }
+
+    private string? ResolveLabel(int segmentNumber, int offset, SortedSet<int> entrySet)
+    {
+        if (!entrySet.Contains(offset)) return null;
+
+        var mainCs = _dump.NeHeader.NE_CsIp >> 16;
+        var mainIp = (int)(_dump.NeHeader.NE_CsIp & 0xFFFF);
+        
+        if ((uint)segmentNumber == mainCs && offset == mainIp)
+            return "main";
+        
+        foreach (var bundle in _dump.EntryBundles.SelectMany(b => b.EntryPoints))
+        {
+            if (bundle.Segment != segmentNumber) 
+                continue;
+            
+            if (bundle.Offset == offset && !string.IsNullOrEmpty(bundle.Name))
+                return bundle.Name;
+        }
+
+        return $"{ProcedurePrefix}_0x{segmentNumber:X4}{offset:X4}";
+    }
+
+    private List<FixupSite> CollectFixupsForRange(int segment, int instrOffset, int instrLength)
+    {
+        var result = new List<FixupSite>();
+        for (var i = 0; i < instrLength; i++)
+        {
+            var site = instrOffset + i;
+            if (_fixupAt.TryGetValue((segment, site), out var fixup))
+                result.Add(fixup);
+        }
+        return result;
+    }
+
+    private static FixupSite? FindFixupForOperand(int instrOffset, DecodedOperand op, IReadOnlyList<FixupSite> instrFixups)
+    {
+        if (op.BytesLength <= 0 || instrFixups.Count == 0) return null;
+
+        var opStart = instrOffset + op.BytesOffset;
+        var opEnd = opStart + op.BytesLength;
+
+        return (
+            from f in instrFixups 
+            let fStart = f.Offset 
+            let fEnd = fStart + f.Size 
+            where fStart < opEnd && fEnd > opStart 
+            select f
+        ).FirstOrDefault();
+    }
+
+    private static string FormatOperandWithSubstitution(
+        DecodedInstruction instr, DecodedOperand op, FixupSite? fixup, ProcessorMode mode)
+    {
+        if (fixup is null) 
+            return FormatOperandPlain(instr, op, mode);
+        
+        var text = op.Part switch
+        {
+            OperandPart.Far => fixup.Symbol,
+            OperandPart.Imm => fixup.Symbol,
+            OperandPart.SignedImm => fixup.Symbol,
+            OperandPart.Abs => $"[{fixup.Symbol}]",
+            OperandPart.Mem mem => ReplaceMemDisplacement(mem.Item, fixup.Symbol),
+            _ => FormatOperandPlain(instr, op, mode)
+        };
+        
+        return text;
+    }
+
+    private static string FormatOperandPlain(
+        DecodedInstruction instr, DecodedOperand op, ProcessorMode mode) =>
+        Decoder.formatOperandPart(mode, instr.Offset, op.Part);
+
+    private static string ReplaceMemDisplacement(string memText, string symbol)
+    {
+        var plus = memText.LastIndexOf('+');
+        var minus = memText.LastIndexOf('-');
+        var cut = Math.Max(plus, minus);
+
+        if (cut <= 0)
+            return $"[{symbol}]";
+
+        var head = memText[..cut];
+        return $"{head}+{symbol}]";
+    }
+    private void RenderSegment(
+        int segmentNumber, byte[] bytes,
+        IReadOnlyList<AnalysedInstruction> analysed)
+    {
         var sb = new StringBuilder();
-        var labeledOffsets = new HashSet<int>(insertedLabels);
-        
-        foreach (var rawLine in lines)
+        var cover = 0;
+
+        var ordered = analysed.OrderBy(a => a.Instr.Offset).ToArray();
+
+        foreach (var analysedInstruction in ordered)
         {
-            var line = rawLine.TrimEnd('\r');
-            var modifiedLine = line;
-            
-            var lm = Regex.Match(line, @"^(?<indent>\s*)(?<prefix>__|p_)(?<addr>0x[0-9A-Fa-f]+)\s*:\s*(?<comment>.*)$");
-            if (lm.Success)
+            var instr = analysedInstruction.Instr;
+
+            if (instr.Offset > cover)
+                RenderDataRange(sb, segmentNumber, bytes, cover, instr.Offset - cover);
+
+            cover = Math.Max(cover, instr.Offset + instr.Length);
+
+            if (analysedInstruction.IsEntryPoint || analysedInstruction.IsCallTarget)
             {
-                var addrHex = lm.Groups["addr"].Value;
-                var indent = lm.Groups["indent"].Value;
-                var flatAddr = Convert.ToInt32(addrHex[2..], 16);
-
-                if (labeledOffsets.Contains(flatAddr))
-                    continue; // already inserted above
-                
-                labeledOffsets.Add(flatAddr);
-
-                var segOff = _flat.AddressMap.TryGetValue(flatAddr, out var src)
-                    ? src.ToString() : $"flat_0x{flatAddr:X4}";
-
-                if (_flat.ExportAtFlat.TryGetValue(flatAddr, out var expName))
-                    sb.AppendLine($"{indent}{expName}: ; Export entry at {segOff}");
-                else
-                    sb.AppendLine(line);
-                
-                continue;
-            }
-            var callMatch = Regex.Match(line, @"[CALLF|JMP]\s+0x([0-9A-Fa-f]+):0x([0-9A-Fa-f]+)\s+;\s+(0x([0-9A-Fa-f]+))");
-            if (callMatch.Success)
-            {
-                var segHex = callMatch.Groups[1].Value;
-                var offHex = callMatch.Groups[2].Value;
-                var instrOffsetHex = callMatch.Groups[4].Value;
-                
-                if (int.TryParse(instrOffsetHex, NumberStyles.HexNumber, null, out var instrOffset) &&
-                    int.TryParse(segHex, NumberStyles.HexNumber, null, out var segVal) &&
-                    int.TryParse(offHex, NumberStyles.HexNumber, null, out var offVal))
+                sb.AppendLine(";");
+                var header = (analysedInstruction.IsEntryPoint, analysedInstruction.IsCallTarget) switch
                 {
-                    // call instruction was skipped -> real runtime import offset = ++instrOffset
-                    var dataAddr = instrOffset + 1;
-                    
-                    if (_flat.AddressMap.TryGetValue(dataAddr, out var src))
-                    {
-                        var key = -((int)(src.Segment << 16) | src.Offset);
-                        
-                        if (_flat.ImportAtFlat.TryGetValue(key, out var impName))
-                        {
-                            modifiedLine = modifiedLine.Replace($"0x{segVal:X4}:0x{offVal:X4}", impName);
-                        }
-                    }
-                
-                    // export far?
-                    if (_flat.SegmentBase.TryGetValue((uint)segVal, out var baseAddr))
-                    {
-                        var targetFlat = baseAddr + offVal;
-                        if (_flat.ExportAtFlat.TryGetValue(targetFlat, out var expName))
-                        {
-                            modifiedLine = modifiedLine.Replace($"0x{segVal:X4}:0x{offVal:X4}", expName);
-                        }
-                    }
-                    
-                }
+                    (true, true) => $"; Export & CALL target @ 0x{instr.Offset:X4}",
+                    (true, false) => $"; Export @ 0x{instr.Offset:X4}",
+                    _ => $"; Procedure at 0x{instr.Offset:X4}"
+                };
+                sb.AppendLine(header);
+                sb.AppendLine(";");
+                sb.AppendLine($"{analysedInstruction.Label ?? $"{ProcedurePrefix}_0x{segmentNumber:X4}{instr.Offset:X4}"}:");
             }
-            sb.AppendLine(modifiedLine);
+            else if (analysedInstruction.Label is not null)
+            {
+                sb.AppendLine($"{analysedInstruction.Label}:");
+            }
+
+            var operandText = string.Join(", ", analysedInstruction.Operands
+                .Select(o => o.Text)
+                .Where(t => t.Length > 0));
+
+            var fullText = operandText.Length > 0
+                ? $"{instr.Mnemonic} {operandText}"
+                : instr.Mnemonic;
+
+            var bytesStr = BitConverter.ToString(instr.Bytes).Replace("-", " ");
+
+            var xrefComment = analysedInstruction.AllFixups.Count > 0
+                ? " xref: " + string.Join(", ", analysedInstruction.AllFixups
+                    .Select(f => f.Offset == instr.Offset
+                        ? f.Symbol
+                        : $"{f.Symbol}+0x{f.Offset - instr.Offset:X}"))
+                : string.Empty;
+
+            var suffixComment = instr.Comment is not null && instr.Comment.Value.Length > 0
+                ? instr.Comment.Value
+                : string.Empty;
+
+            sb.AppendLine(
+                $"\t{fullText,-30} ; {segmentNumber}:0x{instr.Offset:X4} {bytesStr}{suffixComment}{xrefComment}");
+
+            if (instr.Flow.Equals(FlowControl.Return))
+            {
+                // TODO: last label name which returned a flow control
+                sb.AppendLine($"; <-- Return to previous flow control");
+            }
+            else if (instr.Flow.Equals(FlowControl.Terminate))
+            {
+                // TODO: Which procedure/jump target terminated a program
+                sb.AppendLine($"; Terminated ({suffixComment}");
+            }
+            else if (instr.Flow.Equals(FlowControl.Halt))
+            {
+                sb.AppendLine("; System Halted");
+            }
         }
 
-        return sb.ToString().TrimEnd('\n');
+        if (cover < bytes.Length)
+            RenderDataRange(sb, segmentNumber, bytes, cover, bytes.Length - cover);
+
+        _results.Add(sb.ToString());
     }
 
-    /// <summary>
-    /// Builds a label line for an entry point at given flat address.
-    /// </summary>
-    private string BuildEntryLabel(int flatAddr)
+    private const string ProcedurePrefix = "procedure";
+
+    private static void RenderDataRange(
+        StringBuilder sb, int segmentNumber, byte[] bytes, int offset, int length)
     {
-        var segOff = _flat.AddressMap.TryGetValue(flatAddr, out var src)
-            ? src.ToString()
-            : $"flat_0x{flatAddr:X4}";
+        const int zeroThreshold = 4;
+        const int bytesPerLine = 16;
+        const int maxLines = 16;
 
-        if (flatAddr == _mainEntryFlat)
-            return $"main: ; Entry point at {segOff}";
+        var mutableI = offset;
+        var limit = offset + length;
+        var linesLeft = maxLines;
 
-        if (_flat.ExportAtFlat.TryGetValue(flatAddr, out var expName))
-            return $"{expName}: ; Export entry at {flatAddr}";
+        while (mutableI < limit && linesLeft > 0)
+        {
+            var runStart = mutableI;
+            var runByte = bytes[mutableI];
 
-        // Make sure that unnamed entry points scanned already
-        return src != null 
-            ? $"entry_{src.Offset:X4}: ; Entry point at {segOff}" 
-            : $"entry_flat_{flatAddr:X8}: ; Entry point at {segOff}";
+            while (mutableI < limit && bytes[mutableI] == runByte) mutableI++;
+            var runLength = mutableI - runStart;
+
+            if (runByte == 0 && runLength >= zeroThreshold)
+            {
+                sb.AppendLine($"\tDB {runLength} DUP (0x00),".PadRight(30) +
+                    $" ; {segmentNumber}:0x{runStart:X4} padding");
+                continue;
+            }
+
+            var pos = runStart;
+            while (pos < mutableI && linesLeft > 0)
+            {
+                var take = Math.Min(bytesPerLine, mutableI - pos);
+                var payload = string.Join(", ", bytes[pos..(pos + take)].Select(b => $"0x{b:X2}"));
+                sb.AppendLine($"\tDB {payload},".PadRight(30) +
+                    $" ; {segmentNumber}:0x{pos:X4} data");
+                pos += take;
+                linesLeft--;
+            }
+        }
+
+        if (mutableI < limit)
+            sb.AppendLine($"; {segmentNumber}:0x{mutableI:X4} {limit - mutableI} more byte(s) of data (omitted)");
     }
 }

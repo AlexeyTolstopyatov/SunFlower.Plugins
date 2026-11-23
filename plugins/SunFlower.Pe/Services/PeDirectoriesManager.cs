@@ -1,4 +1,3 @@
-using SunFlower.Pe.Headers;
 using Directory = SunFlower.Pe.Models.Directory;
 
 namespace SunFlower.Pe.Services;

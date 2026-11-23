@@ -23,7 +23,7 @@ public class PeExportsManager(ImageDetails info, string path) : DirectoryManager
     private readonly ImageDetails _info = info;
     public ExportTable ExportTable { get; private set; } = new();
 
-    // Declare Imports Exports CRT BaseRelocs (and other) sections here.
+    // Declare Imports Exports CRT base relocations sections here.
     public void Dump()
     {
         // run main process
@@ -47,7 +47,7 @@ public class PeExportsManager(ImageDetails info, string path) : DirectoryManager
         // fall back to an empty table instead.
         try
         {
-            var exportOffset = Offset(_info.Directories[0].VirtualAddress ?? 0);
+            var exportOffset = Offset(_info.Directories[0].VirtualAddress);
 
             reader.BaseStream.Seek(exportOffset, SeekOrigin.Begin);
             var exportDir = Fill<PeImageExportDirectory>(reader);

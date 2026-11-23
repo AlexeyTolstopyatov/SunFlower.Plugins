@@ -28,7 +28,8 @@ public class PortableExecutableFlower : IFlower
     [Seed(
         name: "Portable Executable Optional Header",
         description: "The Optional Header is the most important header of the NT headers, \r\n" +
-                     "the PE loader looks for specific information provided by that header to be able to load and run the executable.\r\n" +
+                     "the PE loader looks for specific information provided by that header to be able " +
+                     "to load and run the executable.\r\n" +
                      "It’s called the optional header because some file types like object files don’t have it, \r\n" +
                      "however this header is essential for image files."
     )]
@@ -69,7 +70,7 @@ public class PortableExecutableFlower : IFlower
         name: "Toolkit Table",
         description: "Iterated tooklit records from Rich header table of given program"
     )]
-    public RichHeaderItem[] ToolkitTable { get; set; } = [];
+    public RichToolkitCollection ToolkitTable { get; set; } = [];
 
     [Seed(
         name: "Export Directory",
@@ -94,7 +95,33 @@ public class PortableExecutableFlower : IFlower
                      "one entry for each DLL to which the image refers.\r\n" +
                      "The last directory entry is empty, which indicates the end of the directory table.\r\n"
     )]
-    public ImportedFunction[] Imports { get; set; } = [];
+    public ImportFunction[] Imports { get; set; } = [];
+
+    [Seed(
+        name: "Delay Imports",
+        description: "Delay-loaded imports (data directory 13). These DLLs are not resolved at\r\n" +
+                     "process start: the image reaches them through a helper on first use, so they\r\n" +
+                     "are an extra set of call targets for a disassembler. A non-zero descriptor\r\n" +
+                     "time stamp means the ImportAddressTable was bound ahead of time."
+    )]
+    public DelayImportModule[] DelayImports { get; set; } = [];
+
+    [Seed(
+        name: "Bound Imports",
+        description: "Bound imports (data directory 11). The list of DLLs this image was linked\r\n" +
+                     "against with a recorded time/date stamp: the loader may skip rewriting the ImportAddressTable\r\n" +
+                     "when the on-disk library still matches. It makes the expected dependency\r\n" +
+                     "versions explicit and exposes transitive forwarder references."
+    )]
+    public BoundImportModule[] BoundImports { get; set; } = [];
+
+    [Seed(
+        name: "TLS Directory",
+        description: "Thread Local Storage (data directory 9). Its fields are Virtual Addresses,\r\n" +
+                     "not RVAs. The callback array is the important part for a disassembler: those\r\n" +
+                     "callbacks run BEFORE the entry point, so they are additional code entry points."
+    )]
+    public TlsDirectoryModel TlsDirectory { get; set; } = new();
     
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {
@@ -102,9 +129,15 @@ public class PortableExecutableFlower : IFlower
         
         PeExportsManager exportsManager = new(dumpManager.ImageDetails, filePath);
         PeImportsManager importsManager = new(dumpManager.ImageDetails, filePath);
-        
+        PeDelayImportsManager delayImportsManager = new(dumpManager.ImageDetails, filePath);
+        PeBoundImportsManager boundImportsManager = new(dumpManager.ImageDetails, filePath);
+        PeTlsManager tlsManager = new(dumpManager.ImageDetails, filePath);
+
         exportsManager.Dump();
         importsManager.Dump();
+        delayImportsManager.Dump();
+        boundImportsManager.Dump();
+        tlsManager.Dump();
         
         FileHeader = dumpManager.FileHeader;
         OptionalHeader = dumpManager.OptionalHeader;
@@ -115,11 +148,13 @@ public class PortableExecutableFlower : IFlower
         ToolkitTable = [..dumpManager.RichHeader.Items];
         ExportDirectory = exportsManager.ExportTable.ExportDirectory;
         Exports = exportsManager.ExportTable.Functions.ToArray();
-        Imports = importsManager.ImportTable.Modules
+        Imports = importsManager.ImportNameTable.Modules
             .SelectMany(x => x.Functions)
             .ToArray();
+        DelayImports = delayImportsManager.DelayImportTable.Modules.ToArray();
+        BoundImports = boundImportsManager.BoundImportTable.Modules.ToArray();
+        TlsDirectory = tlsManager.TlsDirectory;
         
-        // clrManager.Dump();
     });
 
     public string Name => "Dump Portable Executable";

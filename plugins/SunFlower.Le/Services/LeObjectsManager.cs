@@ -1,10 +1,10 @@
-﻿using Object = SunFlower.Le.Headers.Le.Object;
+﻿using SunFlower.Le.Headers;
 
 namespace SunFlower.Le.Services;
 
 public class LeObjectsManager
 {
-    public List<Object> Objects { get; set; } = [];
+    public List<FileObject> Objects { get; set; } = [];
 
     public LeObjectsManager(BinaryReader reader, uint offset, uint count)
     {
@@ -19,7 +19,7 @@ public class LeObjectsManager
             var pageMapEntries = reader.ReadUInt32();
             var unknownField = reader.ReadUInt32();
             
-            Objects.Add(new Object(
+            Objects.Add(new(
                 virtualSegmentSize, 
                 relocationBase,
                 objectFlagsMask, 

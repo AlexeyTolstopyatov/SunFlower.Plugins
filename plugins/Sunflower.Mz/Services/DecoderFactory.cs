@@ -8,22 +8,20 @@
 // @creator: atolstopyatov2017@vk.com
 //
 
-using System.Diagnostics;
-using Sunflower.Dasm;
+using Sunflower.Dasm.Intel.Core;
+using Decoder = Sunflower.Dasm.Intel.Core.Decoder;
 
 namespace Sunflower.Mz.Services;
 
-public enum InstructionSet
-{
-    I8086,
-    I80186,
-    I80286
-}
-public class DecoderFactory(InstructionSet set)
+public class DecoderFactory(ProcessorMode mode)
 {
     private readonly List<string> _results = [];
-    
-    public Exception? DecoderException { get; private set; }
+    private const string EntryPointLabel = "main:";
+    private string OpcodeMapPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "opcodes286.json");
+    /// <summary>
+    /// Parent process (SunFlower.Client) path holds by BaseDirectory. That's why it works
+    /// </summary>
+    private string InterruptMapPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Interrupt", "dos.json");
     /// <summary>
     /// Applies to the .COM programs. Usually used memory model was tiny
     /// That's why all image could be disassembled
@@ -31,15 +29,14 @@ public class DecoderFactory(InstructionSet set)
     private void DecodeCom(ref string path)
     {
         var file = File.ReadAllBytes(path);
-        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
         _results.AddRange([
             $"; SunFlower.MZ.dll for .COM files (at {DateTime.UtcNow})",
             $"; [{path}]",
-            $"; Was disassembled for Intel {set} including MS-DOS interrupt vectors",
+            $"; Was disassembled for Intel {mode} including MS-DOS interrupt vectors",
             "; Connected external resources:",
             ";     - Interrupts: dos.json",
             "",
-            "entry:"
+            EntryPointLabel
         ]);
         // MS-DOS command always starts from zero.
         // If you expect to see something about PSP -> think different
@@ -50,30 +47,34 @@ public class DecoderFactory(InstructionSet set)
         // Command file may contain x86 conditional jump to the entry point
         // And I'm expecting for this now. I specially tell you that zero file offset contains
         // near jump to the entry point. Or special commands block and further jump.
-        Decode(interruptsPath, file, [0]);
+        Decode(file, [0]);
     }
+    /// <summary>
+    /// Applies for real-mode DOS executables
+    /// </summary>
+    /// <param name="path">image/program path</param>
+    /// <param name="manager">program details</param>
+    /// <param name="entryPoint">main entry point</param>
+    /// <param name="stackPoint">possible start of stack</param>
     private void DecodePages(ref string path, ref MzDumpManager manager, int entryPoint, int stackPoint)
     {
         // Open target file and try to disassemble selected code block
-        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
         var file = File.ReadAllBytes(path);
         
-        // Make beautiful header to the resulting file
         _results.AddRange([
             $"; SunFlower.MZ.dll for relocatable programs (at {DateTime.UtcNow})",
             $"; [{path}]", 
-            $"; Was disassembled for Intel {set} including MS-DOS interrupt vectors",
+            $"; Was disassembled for Intel {mode} including MS-DOS interrupt vectors",
             "; Connected external resources:",
-            ";     - Interrupts: dos.json",
+            File.Exists(InterruptMapPath) ? ";     - Interrupts: dos.json" : "\r\n[dos.json MAP IS MISSING]\r\n",
             "; Defined MS-DOS program values from the program header are:",
             $";    .CODE  offset: 0x{manager.CodeOffset:X}  (entry=0x{entryPoint:X})",
-             ";           Entry point automatically set to 0x1C if computed file pointer is zero.",
             $";    .STACK offset: 0x{manager.StackOffset:X} (stack=0x{stackPoint:X})",
             "",
-            "entry:"
+            EntryPointLabel
         ]);
         
-        Decode(interruptsPath, file, [entryPoint]);
+        Decode(file, [entryPoint]);
     }
 
     private void DecodeDosStub(ref string path, int start, long end)
@@ -82,32 +83,59 @@ public class DecoderFactory(InstructionSet set)
             $"; SunFlower.MZ.dll for protected-mode executable (at {DateTime.UtcNow})",
             $"; [{path}]", 
             "; The DOS stub program ", 
-            $"; Disassembled for {set} including MS-DOS interrupt vectors",
+            $"; Disassembled for {mode} including MS-DOS interrupt vectors",
             "; Connected external resources:",
             ";     - Interrupts: dos.json",
             "",
-            "entry:"
+            EntryPointLabel
         ]);
-        var interruptsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "Assets", "dos.json");
+        
         using var fileStream = File.OpenRead(path);
         var dosStubBytes = new byte[Math.Abs(end - start)];
+        
         fileStream.Position = start;
         fileStream.ReadExactly(dosStubBytes, 0, dosStubBytes.Length);
 
-        Decode(interruptsPath, dosStubBytes, [0]);
+        Decode(dosStubBytes, [0]);
     }
 
-    private void Decode(string path, byte[] imageBytes, int[] entryPoints)
+    private void Decode(byte[] imageBytes, int[] entryPoints)
     {
-        var text = set switch
+        #if DEBUG
+        Console.WriteLine($"-> {OpcodeMapPath}    [Exists]={File.Exists(OpcodeMapPath)}");
+        Console.WriteLine($"-> {InterruptMapPath} [Exists]={File.Exists(InterruptMapPath)}");
+        #endif
+        
+        var decoderState = Decoder.create(OpcodeMapPath, InterruptMapPath, mode);
+        var (instructions, _, _) = Decoder.runRecursive(decoderState, imageBytes, entryPoints);
+        
+        if (instructions is null)
+            return;
+
+        foreach (var instruction in instructions)
         {
-            InstructionSet.I8086 => I8086Decoder.decodeRecursive(path, imageBytes, entryPoints),
-            InstructionSet.I80186 => I80186Decoder.decodeRecursive(path, imageBytes, entryPoints),
-            InstructionSet.I80286 => I80286Decoder.decodeRecursive(path, imageBytes, entryPoints),
-            _ => throw new UnreachableException()
-        };
-        _results.Add(text);
+            var operandText = string.Join(", ", instruction.Operands
+                .Select(o => FormatOperandPlain(instruction, o))
+                .Where(t => t.Length > 0));
+
+            var fullText = operandText.Length > 0
+                ? $"{instruction.Mnemonic} {operandText}"
+                : instruction.Mnemonic;
+
+            var bytesStr = BitConverter.ToString(instruction.Bytes).Replace("-", " ");
+            
+            var suffixComment = instruction.Comment is not null && instruction.Comment.Value.Length > 0
+                ? instruction.Comment.Value
+                : string.Empty;
+
+            _results.Add(
+                $"\t{fullText,-30} ; 0x{instruction.Offset:X4} {bytesStr}{suffixComment}");
+        }
     }
+    private string FormatOperandPlain(
+        DecodedInstruction instr, DecodedOperand op) =>
+        Decoder.formatOperandPart(mode, instr.Offset, op.Part);
+    
     public string[] Decode(string path)
     {
         // If manger throws exception -> there's nothing to do. Data is missing
@@ -150,7 +178,6 @@ public class DecoderFactory(InstructionSet set)
         }
         catch (Exception e)
         {
-            DecoderException = e;
         }
         
         return _results.ToArray();

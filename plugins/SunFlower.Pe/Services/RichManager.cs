@@ -34,7 +34,7 @@ public class RichManager : UnsafeManager
     private void Parse(string path, long coffOffset)
     {
         // The Rich header always lives between the DOS stub and e_lfanew.
-        if (coffOffset <= RichConstants.DosStubOffset || coffOffset > int.MaxValue)
+        if (coffOffset is <= RichConstants.DosStubOffset or > int.MaxValue)
             return;
 
         byte[] region;

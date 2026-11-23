@@ -1,6 +1,6 @@
 ﻿namespace SunFlower.Le.Headers;
 
-public static class FixupRelocationType
+public static class FixupRelocationCharacteristics
 {
     public static string GetRelocationType(byte rtp)
     {
@@ -10,6 +10,7 @@ public static class FixupRelocationType
             1 => "IMPORT_ORDINAL",
             2 => "IMPORT_NAME",
             3 => "OSFIXUP",
+            4 => "CHAINED",
             _ => "INVALID!"
         };
     }

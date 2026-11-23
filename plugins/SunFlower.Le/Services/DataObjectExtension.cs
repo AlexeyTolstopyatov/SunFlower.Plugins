@@ -24,7 +24,7 @@ public static class DataObjectExtension
     /// <summary>
     /// Minimal length of a printable run reported as a string.
     /// </summary>
-    public const int DefaultMinStringLength = 3;
+    public const int DefaultMinStringLength = 4;
 
     /// <summary>
     /// $UNDER CONSTRUCTION$

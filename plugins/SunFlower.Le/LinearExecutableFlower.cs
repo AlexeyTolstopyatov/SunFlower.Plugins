@@ -126,8 +126,13 @@ public class LinearExecutableFlower : IFlower
             Header = manager.LeHeader;
             VxdHeader = manager.VxdHeader;
             VxdDescriptionBlock = manager.VxdDescriptionBlock;
-            Objects = manager.Objects;
-            Pages = manager.Pages.Select(p => p.Page).ToArray();
+            
+            Objects = manager.Objects
+                .Select(x => new Object(x))
+                .ToArray();
+            Pages = manager.Pages
+                .Select(p => p.Page)
+                .ToArray();
             
             Entries = manager.EntryBundles
                 .SelectMany(x => x.Entries)

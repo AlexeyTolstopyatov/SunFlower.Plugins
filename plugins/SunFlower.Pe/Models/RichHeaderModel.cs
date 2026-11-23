@@ -1,4 +1,5 @@
 namespace SunFlower.Pe.Models;
+
 ///
 /// CoffeeLake 2026-*
 ///
@@ -15,31 +16,38 @@ public class RichHeaderModel
     /// True when a "Rich" marker was found in the DOS stub area.
     /// </summary>
     public bool Present { get; set; }
+
     /// <summary>
     /// File offset of the "DanS" marker (0 when absent).
     /// </summary>
     public long DansOffset { get; set; }
+
     /// <summary>
     /// XOR key (doubles as the header checksum).
     /// </summary>
     public uint Key { get; set; }
+
     /// <summary>
     /// The three 32-bit words after "DanS" are zero in a canonical header.
     /// </summary>
     public bool PaddingValid { get; set; }
+
     /// <summary>
     /// Recomputed checksum matched the stored key.
     /// </summary>
     public bool ChecksumValid { get; set; }
+
     /// <summary>
     /// Value recomputed from the DOS header and the records.
     /// </summary>
     public uint ComputedChecksum { get; set; }
+
     /// <summary>
     /// Decoded product records, in the order they appear.
     /// </summary>
-    public List<RichHeaderItem> Items { get; set; } = [];
+    public RichToolkitCollection Items { get; set; } = [];
 }
+
 /// <summary>
 /// A single decoded Rich header record with resolved annotations.
 /// </summary>

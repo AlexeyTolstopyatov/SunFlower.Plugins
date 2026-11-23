@@ -16,5 +16,16 @@
       <Reference Include="SunFlower.Abstractions">
         <HintPath>..\..\..\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
       </Reference>
+      <Reference Include="Sunflower.Dasm">
+        <HintPath>..\..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
+      </Reference>
+      <Reference Include="FSharp.Core">
+        <HintPath>D:\Locals\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\FSharp.Core.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="..\..\..\SunFlower\src\Sunflower.Dasm\opcodes386.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 </Project>

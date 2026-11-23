@@ -1,8 +1,10 @@
-﻿namespace SunFlower.Le.Services;
+﻿using SunFlower.Le.Headers;
+
+namespace SunFlower.Le.Services;
 
 public class LxObjectsManager
 {
-    public List<Headers.Lx.Object> Objects { get; set; } = [];
+    public List<FileObject> Objects { get; set; } = [];
 
     public LxObjectsManager(BinaryReader reader, uint offset, uint count)
     {
@@ -17,7 +19,7 @@ public class LxObjectsManager
             var pageMapEntries = reader.ReadUInt32();
             var unknownField = reader.ReadUInt32();
             
-            Objects.Add(new Headers.Lx.Object
+            Objects.Add(new()
             {
                 VirtualSegmentSize = virtualSegmentSize,
                 ObjectFlagsMask = objectFlagsMask,

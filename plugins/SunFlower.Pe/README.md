@@ -22,18 +22,28 @@ will be added over time*.
 | `IMAGE_OPTIONAL_HEADER`s | Done          |
 | `IMAGE_OS2_HEADER`       | Done          |
 | `COR20_HEADER`           | Done          |
-| Rich header (MSVC info)  | Not supported |
+| Rich header (MSVC info)  | Done          |
 | Data Directories         | Done          |
 | Section Headers          | Done          |
 | Static Imports table     | Done          |
 | Imporing Addresses Table | Not supported |
 | Bound Imports Table      | Not supported |
-| Delay Imports Table      | Not supported |
+| Delay Imports Table      | Done          |
 | Exports Table            | Done          |
 | Certifications Table     | Not supported |
 | Base relocations table   | Not supported |
 | Structured Exceptions    | Not supported |
+| TLS Directory            | Not supported |
+| Load Config Directory    | Not supported |
 | Global Pointers Table    | Not supported |
+
+### Image diagnostics
+
+The dump never throws on malformed images. Structural inconsistencies are
+reported instead through the `ImageDetails Anomalies` seed: raw data beyond the
+end of the file, overlapping / misaligned sections, an entry point outside every
+section, an undersized header region, an out-of-range `SizeOfImage` and trailing
+data (overlay) after the last section.
 
 ### License
 MIT

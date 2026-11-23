@@ -114,8 +114,7 @@ public class PeDumpManager : UnsafeManager
         Directories = readDirectories;
         //Array.Copy(readDirectories, Directories, directoryCount);
         
-        // Section table: offset is derived from SizeOfOptionalHeader rather than
-        // from the reader position, so truncated optional headers are handled.
+        // offset is derived from SizeOfOptionalHeader
         var sectionTableOffset = _peOffset + 4
             + Marshal.SizeOf(typeof(PeFileHeader))
             + FileHeader.SizeOfOptionalHeader;
@@ -134,15 +133,17 @@ public class PeDumpManager : UnsafeManager
             NumberOfRva = declaredDirectories,
             SectionAlignment = OptionalHeader.SectionAlignment,
             FileAlignment = OptionalHeader.FileAlignment,
-            // ImageDetails keeps a 32-bit model (consumed by the VB
+            // ImageDetails keeps a 32-bit model (accepted by the VB
             // managers): for PE32+ the low 32 bits of ImageBase are kept, and
             // BaseOfData does not exist in PE32+ (defaults to 0).
             ImageBase = (uint)OptionalHeader.ImageBase,
+            ImageBase64 = OptionalHeader.ImageBase,
             BaseOfCode = OptionalHeader.BaseOfCode,
             BaseOfData = Is64Bit ? 0u : OptionalHeader32.BaseOfData,
             Sections = PeSections,
             Directories = Directories,
-            EntryPoint = OptionalHeader.AddressOfEntryPoint
+            EntryPoint = OptionalHeader.AddressOfEntryPoint,
+            SizeOfImage = OptionalHeader.SizeOfImage
         };
         // The Rich header lives in the DOS stub; it is parsed from its own
         // stream so the sequential reader state below stays untouched.

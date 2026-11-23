@@ -10,7 +10,7 @@ using SunFlower.Le.Services;
 
 namespace SunFlower.Le;
 
-[Flower(FlowerTarget.Code)]
+[Flower(FlowerTarget.Code, "asm")]
 [FlowerVersionContract(5, 0, 0)]
 public class Os2v2ExecutableDasmFlower : IFlower
 {
@@ -20,7 +20,7 @@ public class Os2v2ExecutableDasmFlower : IFlower
     public Task CreateAsync(string filePath)
     {
         var dumpManager = new LxDumpManager(filePath);
-        var disassembler = new LxDecoderService(filePath, dumpManager);
+        var disassembler = DecoderServiceFactory.Create(filePath, dumpManager);
         
         PseudoCode = disassembler.Disassemble();
         
@@ -28,5 +28,4 @@ public class Os2v2ExecutableDasmFlower : IFlower
     }
 
     public string Name => "Decode IBM OS/2 Linear eXecutable (i386)";
-    public Exception Exception { get; }
 }

@@ -14,9 +14,18 @@
     <Reference Include="Sunflower.Dasm">
       <HintPath>..\..\..\SunFlower\src\Sunflower.Dasm\bin\Debug\net8.0\Sunflower.Dasm.dll</HintPath>
     </Reference>
+    <Reference Include="FSharp.Core">
+      <HintPath>..\..\..\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\FSharp.Core.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Update="opcodes386.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="..\..\..\SunFlower\src\Sunflower.Dasm\opcodes286.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="..\..\..\SunFlower\src\Sunflower.Dasm\Interrupt\dos.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

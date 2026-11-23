@@ -37,6 +37,7 @@ using SunFlower.Le.Services;
 //
 using SunFlower.Le.Headers.Lx;
 using Entry = SunFlower.Le.Models.Entry;
+using Object = SunFlower.Le.Headers.Lx.Object;
 
 namespace SunFlower.Le;
 
@@ -107,9 +108,10 @@ public class Os2v2ExecutableFlower : IFlower
         {
             LxDumpManager manager = new(filePath);
             Header = manager.LxHeader;
-            Objects = manager.Objects;
             Pages = manager.Pages;
-            
+            Objects = manager.Objects
+                .Select(x => new Object(x))
+                .ToArray();
             Entries = manager.EntryBundles
                 .SelectMany(x => x.Entries)
                 .Where(x => x.Type != EntryBundleType.Unused) // Skip empty entries
@@ -174,6 +176,9 @@ public class Os2v2ExecutableFlower : IFlower
             ResidentNames = manager.ResidentNames;
             NonResidentNames = manager.NonResidentNames;
             ImportNames = manager.ImportRecords;
+            
+            // Populate XrefTable with code references, fixups, exports, and imports
+            var disassembler = new LxDecoderService(filePath, manager);
         });
     }
 

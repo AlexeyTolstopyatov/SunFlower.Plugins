@@ -23,7 +23,7 @@ public class ImportsByFixupsManager
 
     public List<ImportRecord> GetImportsByFixups(
         BinaryReader reader, 
-        List<LeFixupRecord> records, 
+        List<FixupRecord> records, 
         string[] impModules,
         long impProcOffset)
     {
@@ -33,7 +33,7 @@ public class ImportsByFixupsManager
             string failSafeMod;
             switch (record.TargetData)
             {
-                case LeFixupTargetImportOrdinal ordinal:
+                case FixupTargetImportOrdinal ordinal:
                     failSafeMod = ordinal.ModuleIndex > impModules.Length || ordinal.ModuleIndex < 1
                         ? $"#{ordinal.ModuleIndex}"
                         : impModules[ordinal.ModuleIndex - 1]; 
@@ -43,7 +43,7 @@ public class ImportsByFixupsManager
                         $"@{ordinal.ImportOrdinal}", 
                         null));
                     break;
-                case LeFixupTargetImportName name:
+                case FixupTargetImportName name:
                 {
                     reader.BaseStream.Position = impProcOffset + name.NameOffset;
                     failSafeMod = name.ModuleIndex > impModules.Length || name.ModuleIndex < 1
@@ -54,7 +54,7 @@ public class ImportsByFixupsManager
 
                     imports.Add(new ImportRecord(
                         failSafeMod,
-                        SunFlower.Abstractions.FlowerReport.SafeString(impName),
+                        Abstractions.FlowerReport.SafeString(impName),
                         name.NameOffset
                     ));
                     break;

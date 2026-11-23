@@ -20,6 +20,6 @@ public class Directory
     }
 
     public string? Name { get; private set; }
-    public uint? VirtualAddress { get; private set; }
-    public uint? Size { get; private set; }
+    public uint VirtualAddress { get; private set; }
+    public uint Size { get; private set; }
 }

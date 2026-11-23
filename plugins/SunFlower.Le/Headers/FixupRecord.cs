@@ -4,13 +4,13 @@
 /// LE Fixup Address Type (Atp) - first byte of fixup record
 /// Bits: 0-3 = address type, 4 = alias, 5 = list mode
 /// </summary>
-public enum LeFixupAddressType : byte
+public enum FixupAddressType : byte
 {
     LowByte = 0,            // 0 - Low byte at the specified offset
     Selector16 = 2,         // 2 - 16-bits selector
-    Far32 = 3,              // 3 - 32-bits far pointer (16:32)
+    Far = 3,              // 3 - 32-bits far pointer (16:16)
     Offset16 = 5,           // 5 - 16-bits Offset
-    Far48 = 6,              // 6 - 48-bits far pointer (16:32)
+    Far32 = 6,              // 6 - 48-bits far pointer (16:32)
     Offset32 = 7,           // 7 - 32-bits Offset
     OffsetRelEip32 = 8,     // 8 - 32-bits Offset Relative to EIP
 }
@@ -21,41 +21,44 @@ public enum LeFixupAddressType : byte
 ///       4 = 32-bit additive, 5 = 16-bit object/module ordinal,
 ///       7 = 8-bit import ordinal
 /// </summary>
-public enum LeFixupRelocationType : byte
+public enum FixupRelocationType : byte
 {
     Internal = 0,       // Internal reference
     ImportOrdinal = 1,  // Imported ordinal
     ImportName = 2,     // Imported name
-    ViaEntryTable = 3,        // OSFIXUP
+    ViaEntryTable = 3,  // Fixup Via Entry Table,
+    InternalChaining = 4// LX specification since 09.10.1996 
 }
 
 /// <summary>
 /// Source address type extracted from Atp byte
 /// </summary>
-public readonly struct LeSourceType(byte atp)
+public readonly struct SourceType(byte atp)
 {
-    public LeFixupAddressType AddressType { get; } = (LeFixupAddressType)(atp & 0x0F);
+    public FixupAddressType AddressType { get; } = (FixupAddressType)(atp & 0x0F);
     public bool IsAlias { get; } = (atp & 0x10) != 0;
     public bool HasSourceList { get; } = (atp & 0x20) != 0;
+    
 }
 
 /// <summary>
 /// Relocation flags extracted from Rtp byte
 /// </summary>
-public readonly struct LeRelocationFlags(byte rtp)
+public readonly struct RelocationFlags(byte rtp)
 {
-    public LeFixupRelocationType RelocationType { get; } = (LeFixupRelocationType)(rtp & 0x03);
+    public FixupRelocationType RelocationType { get; } = (FixupRelocationType)(rtp & 0x03);
     public bool HasAdditive { get; } = (rtp & 0x04) != 0;
     public bool Is32BitTargetOffset { get; } = (rtp & 0x08) != 0;
     public bool Is32BitAdditive { get; } = (rtp & 0x10) != 0;
     public bool Is16BitObjectModule { get; } = (rtp & 0x20) != 0;
     public bool Is8BitImportOrdinal { get; } = (rtp & 0x80) != 0;
+    public bool IsInternalChaining => ((rtp >> 3) & 1) != 0;
 }
 
 /// <summary>
 /// Target data for internal reference fixup
 /// </summary>
-public readonly struct LeFixupTargetInternal(ushort objectNumber, uint targetOffset)
+public readonly struct FixupTargetInternal(ushort objectNumber, uint targetOffset)
 {
     public ushort ObjectNumber { get; } = objectNumber;
     public uint TargetOffset { get; } = targetOffset;
@@ -64,7 +67,7 @@ public readonly struct LeFixupTargetInternal(ushort objectNumber, uint targetOff
 /// <summary>
 /// Target data for imported ordinal fixup
 /// </summary>
-public readonly struct LeFixupTargetImportOrdinal(ushort moduleIndex, uint importOrdinal)
+public readonly struct FixupTargetImportOrdinal(ushort moduleIndex, uint importOrdinal)
 {
     public ushort ModuleIndex { get; } = moduleIndex;
     public uint ImportOrdinal { get; } = importOrdinal;
@@ -73,7 +76,7 @@ public readonly struct LeFixupTargetImportOrdinal(ushort moduleIndex, uint impor
 /// <summary>
 /// Target data for imported name fixup
 /// </summary>
-public readonly struct LeFixupTargetImportName(ushort moduleIndex, uint nameOffset)
+public readonly struct FixupTargetImportName(ushort moduleIndex, uint nameOffset)
 {
     public ushort ModuleIndex { get; } = moduleIndex;
     public uint NameOffset { get; } = nameOffset;
@@ -82,7 +85,7 @@ public readonly struct LeFixupTargetImportName(ushort moduleIndex, uint nameOffs
 /// <summary>
 /// Target data for OS fixup
 /// </summary>
-public readonly struct LeFixupTargetEntryTable(byte[] data, byte[] additive)
+public readonly struct FixupTargetEntryTable(byte[] data)
 {
     public ushort Ordinal { get; } = Convert.ToUInt16(data);
 }
@@ -90,17 +93,17 @@ public readonly struct LeFixupTargetEntryTable(byte[] data, byte[] additive)
 /// <summary>
 /// LE Fixup Record - complete parsed fixup record according to LE specification
 /// </summary>
-public readonly struct LeFixupRecord(
-    LeSourceType sourceType,
-    LeRelocationFlags relocationFlags,
+public readonly struct FixupRecord(
+    SourceType sourceType,
+    RelocationFlags relocationFlags,
     ushort sourceOffset,
     object targetData,
     uint? additiveValue,
     ushort[] sourceOffsetList,
     int logicalPage = -1)
 {
-    public LeSourceType SourceType { get; } = sourceType;
-    public LeRelocationFlags RelocationFlags { get; } = relocationFlags;
+    public SourceType SourceType { get; } = sourceType;
+    public RelocationFlags RelocationFlags { get; } = relocationFlags;
 
     /// <summary>
     /// Source offset within the page, or count of source offsets if list mode
@@ -108,8 +111,8 @@ public readonly struct LeFixupRecord(
     public ushort SourceOffset { get; } = sourceOffset;
 
     /// <summary>
-    /// Target data: LeFixupTargetInternal, LeFixupTargetImportOrdinal,
-    /// LeFixupTargetImportName, or LeFixupTargetEntryTable
+    /// Target data: FixupTargetInternal, FixupTargetImportOrdinal,
+    /// FixupTargetImportName, or FixupTargetEntryTable
     /// </summary>
     public object TargetData { get; } = targetData;
 

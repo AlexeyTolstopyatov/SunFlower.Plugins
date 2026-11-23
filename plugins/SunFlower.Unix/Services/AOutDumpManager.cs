@@ -74,9 +74,9 @@ public class AOutDumpManager(string path) : UnsafeManager
         // Compute section offsets using the documented macros.
         TextOffset = ComputeTextOffset(magic);
         
-        SymbolOffset = TextOffset + (long)header.TextSize + (long)header.DataSize
-                       + (long)header.TextRelocSize + (long)header.DataRelocSize;
-        StringOffset = SymbolOffset + (long)header.Symbols;
+        SymbolOffset = TextOffset + header.TextSize + header.DataSize
+                       + header.TextRelocSize + header.DataRelocSize;
+        StringOffset = SymbolOffset + header.Symbols;
 
         // Read and resolve the symbol table (if present).
         if (header.Symbols > 0)

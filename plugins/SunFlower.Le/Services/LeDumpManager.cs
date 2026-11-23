@@ -1,7 +1,6 @@
 ﻿using SunFlower.Le.Headers;
 using SunFlower.Le.Headers.Le;
 using EntryBundle = SunFlower.Le.Headers.EntryBundle;
-using Object = SunFlower.Le.Headers.Le.Object;
 using ObjectPage = SunFlower.Le.Models.Le.ObjectPage;
 
 namespace SunFlower.Le.Services;
@@ -13,15 +12,17 @@ public class LeDumpManager : UnsafeManager
     public ExportRecord[] ResidentNames { get; }
     public ExportRecord[] NonResidentNames { get; }
     public EntryBundle[] EntryBundles { get; }
-    public Object[] Objects { get; }
+    public FileObject[] Objects { get; }
     public ObjectPage[] Pages { get; }
-    public LeFixupRecord[] FixupRecords { get; }
+    public FixupRecord[] FixupRecords { get; }
     public FixupPageRecord[] FixupPageOffsets { get; }
     public ImportRecord[] ImportRecords { get; }
     public readonly ObjectPageOffsetPair[] ObjectsOffsets;
     public VxdHeader VxdHeader { get; set; }
     public VxdDescriptionBlock VxdDescriptionBlock { get; set; }
     public VxdResources VxdResources { get; set; }
+    public int VxdDescriptorBlockBundleIndex { get; private set; }
+    public int VxdDescriptorBlockEntryIndex { get; private set;}
     public bool IsDriver { get; private set; }
     private readonly uint _offset;
 
@@ -56,7 +57,13 @@ public class LeDumpManager : UnsafeManager
         
         var fixupPageOffsets = new FixupPagesManager(reader, Offset(LeHeader.e32_fpagetab), LeHeader.e32_mpages).GetFixupPageOffsets();
         var fixupRecords = new FixupRecordsManager().ReadFixupRecordsTable(reader, Offset(LeHeader.e32_frectab), fixupPageOffsets);
-        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, fixupRecords, [..importNames.ImportingModules], Offset(LeHeader.e32_impproc));
+        
+        var pageFileOffsets = pagesTable.Pages
+            .Select(p => (long)(LeHeader.e32_datapage + (p.Page.LongPageIndex - 1) * LeHeader.e32_pagesize))
+            .ToList();
+
+        var expandedFixupRecords = FixupChainExpander.Expand(fixupRecords, reader, pageFileOffsets);
+        var imports = new ImportsByFixupsManager().GetImportsByFixups(reader, expandedFixupRecords, [..importNames.ImportingModules], Offset(LeHeader.e32_impproc));
         
         NonResidentNames = [..namesTables.NonResidentNames];
         ResidentNames = [..namesTables.ResidentNames];
@@ -65,7 +72,7 @@ public class LeDumpManager : UnsafeManager
         FixupPageOffsets = [..fixupPageOffsets];
         Pages = [..pagesTable.Pages];
         
-        FixupRecords = [..fixupRecords];
+        FixupRecords = [..expandedFixupRecords];
         ImportRecords = [..imports];
         // Load all memory pages offsets
         ObjectsOffsets = GetObjectsOffsets();
@@ -82,6 +89,32 @@ public class LeDumpManager : UnsafeManager
         CollectVirtualDriverMetadata(reader);
         
         reader.Close();
+    }
+    
+    // EntryBundles represents complex structure where bundles are not indexed.
+    private Entry? DescriptionBlockEntryOrNull()
+    {
+        // Index of an entry point (1-based). By this index I'm going 
+        // to compute <Entry>. Also, I'm sure about that, given Resource->Ordinal field
+        // are not refers to the unused entry. (for else, we can't define public API for a driver)
+        var ordinal = 0;
+        // Iterate all entries here, I want to find Resource->Ordinal and ordinal match.
+        for (var i = 0; i < EntryBundles.Length; i++)
+        {
+            var bundle = EntryBundles[i];
+
+            VxdDescriptorBlockBundleIndex = i;
+
+            foreach (var entry in bundle.Entries)
+            {
+                if (++ordinal == VxdResources.Ordinal)
+                {
+                    return entry;
+                }
+            }
+        }
+
+        return null;
     }
     /// <summary>
     /// The most suffering procedure ever made 
@@ -109,29 +142,6 @@ public class LeDumpManager : UnsafeManager
         // Remember of it, because GetPhysicalOffset requires explicit
         // object# for given entry point
         var objectNumber = 0;
-        // EntryBundles represents complex structure where bundles are not indexed.
-        // They will be indexed in the high level (LeTableManager)
-        Entry? EntryOrNull()
-        {
-            // Index of an entry point (1-based). By this index I'm going 
-            // to compute <Entry>. Also, I'm sure about that, given Resource->Ordinal field
-            // are not refers to the unused entry. (for else, we can't define public API for a driver)
-            var ordinal = 0;
-            // Iterate all entries here, I want to find Resource->Ordinal and ordinal match.
-            foreach (var bundle in EntryBundles)
-            {
-                objectNumber = bundle.ObjectNumber;
-                foreach (var entry in bundle.Entries)
-                {
-                    ++ordinal;
-                    if (ordinal == VxdResources.Ordinal)
-                    {
-                        return entry;
-                    }
-                }
-            }
-            return null;
-        }
         // Now we get the Ordinal of "procedure" (hehe, I meant description block metadata)
         // And I'm going to accept challenge - find the address of DDB block by given ordinal
         long ExtractEntryOffset(Entry entry)
@@ -151,11 +161,14 @@ public class LeDumpManager : UnsafeManager
                 _ => throw new Exception($"Given entry type is {entry.Type}")
             };
             
-            return objectNumber == 0 ? offset : GetPhysicalOffset(objectNumber, offset);
+            return objectNumber == 0 
+                ? offset 
+                : GetPhysicalOffset(objectNumber, offset);
         }
         // Now I've done. Object number is updated. Entry extracted or null.
         // Last action what we need -> apply it
-        var ddbEntry = EntryOrNull();
+        var ddbEntry = DescriptionBlockEntryOrNull();
+        
         if (ddbEntry is null)
         {
             // Last chance to dance. If we're lookin at the .386 virtual driver
@@ -163,13 +176,14 @@ public class LeDumpManager : UnsafeManager
             // Then we don't know any information about device block location. But...
             // If we know the VxD header exists -> DDB exists too.
             //
-            // By default we see the @1 entry point => look the first bundle and first item in the bundle  
+            // By default, we see the @1 entry point => look the first bundle and first item in the bundle  
             ddbEntry = EntryBundles[0].Entries[0]; 
         }
         var offset = ExtractEntryOffset(ddbEntry);
         
         reader.BaseStream.Position = offset;
         VxdDescriptionBlock = Fill<VxdDescriptionBlock>(reader);
+        VxdDescriptorBlockEntryIndex = ddbEntry.Ordinal - 1;
     }
     
     private ObjectPageOffsetPair[] GetObjectsOffsets()

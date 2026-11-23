@@ -15,6 +15,7 @@
 
 using SunFlower.Abstractions;
 using SunFlower.Pe.Headers;
+using SunFlower.Pe.Services;
 
 namespace SunFlower.Pe;
 
@@ -44,12 +45,13 @@ public class PortableExecutableRomFlower : IFlower
                      "precisely after the section headers."
     )]
     public PeSection[] Sections { get; set; } = [];
-    
-    
-    public Task CreateAsync(string filePath)
+
+
+    public Task CreateAsync(string filePath) => Task.Run(() =>
     {
-        return Task.FromException(new NotImplementedException());
-    }
+        PeDumpManager dump = new PeDumpManager(filePath);
+        
+    });
 
     public string Name => "Portable Executable ROM Dump";
 }

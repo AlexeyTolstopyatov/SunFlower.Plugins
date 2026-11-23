@@ -18,10 +18,8 @@ namespace SunFlower.Pe.Services;
 public class DirectoryManager(ImageDetails info) : UnsafeManager
 {
     /// <returns> Directory exists when someone of 2 parameters not 0 </returns>
-    protected static bool IsDirectoryExists(Directory dir)
-    {
-        return dir is { Size: not null, VirtualAddress: not null };
-    }
+    protected static bool IsDirectoryExists(Directory dir) =>
+        dir is { Size: not 0 } or { VirtualAddress: not 0 };
     /// <param name="rva"> Required RVA </param>
     /// <returns> File offset from RVA of selected section </returns>
     /// <exception cref="SectionNotFoundException"> If RVA not belongs to any section </exception>

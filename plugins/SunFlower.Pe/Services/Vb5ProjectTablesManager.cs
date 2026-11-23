@@ -47,7 +47,7 @@ public class Vb5ProjectTablesManager : DirectoryManager
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read);
         using var reader = new BinaryReader(stream);
 
-        // Strings'ch follows by the header are zero-terminated (or C-strings)
+        // Strings follows by the header are zero-terminated
         
         var projDescriptionOffset = vbnewOffset + header.ProjectDescriptionOffset;
         var projNameOffset = vbnewOffset + header.ProjectNameOffset;

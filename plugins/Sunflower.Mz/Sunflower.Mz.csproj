@@ -10,6 +10,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <Reference Include="FSharp.Core">
+        <HintPath>..\SunFlower.Ne\bin\Debug\net8.0\FSharp.Core.dll</HintPath>
+      </Reference>
       <Reference Include="SunFlower.Abstractions">
         <HintPath>..\..\..\SunFlower\src\SunFlower.Client\bin\Debug\net8.0\SunFlower.Abstractions.dll</HintPath>
       </Reference>
