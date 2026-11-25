@@ -91,7 +91,7 @@ public class FixupRecordsManager
 #if DEBUG
                 FixupDebug.Log($"  [ViaEntryTable] posBeforeEntry=0x{reader.BaseStream.Position:X8}");
 #endif
-                byte[] entryData = flags.Is16BitObjectModule
+                var entryData = flags.Is16BitObjectModule
                     ? reader.ReadBytes(2)
                     : reader.ReadBytes(1);
 #if DEBUG

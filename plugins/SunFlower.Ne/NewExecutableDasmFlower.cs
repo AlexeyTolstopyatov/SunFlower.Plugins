@@ -22,7 +22,7 @@ public class NewExecutableDasmFlower : IFlower
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {
         var dumpManager = new NeDumpManager(filePath);
-        ProcessorMode set = ProcessorMode.I286;
+        var set = ProcessorMode.I286;
 
         var decoder = new NeDecoderService(filePath, dumpManager, set);
         

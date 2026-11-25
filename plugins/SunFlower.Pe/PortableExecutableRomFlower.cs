@@ -49,7 +49,7 @@ public class PortableExecutableRomFlower : IFlower
 
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {
-        PeDumpManager dump = new PeDumpManager(filePath);
+        var dump = new PeDumpManager(filePath);
         
     });
 

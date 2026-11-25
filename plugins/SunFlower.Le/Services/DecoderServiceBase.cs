@@ -12,7 +12,7 @@
 //   - reading object bytes from file pages
 //   - extracting properties from the platform-specific file object
 
-using System.Collections;
+using System.Globalization;
 using System.Text;
 using Sunflower.Dasm.Intel.Core;
 using SunFlower.Le.Headers;
@@ -124,11 +124,15 @@ public abstract class DecoderServiceBase
 
         Results.AddRange([
             ";",
-            $"; SunFlower.LE.dll for Linear Executable {moduleName}",
-            $"; Entry Bundles: {DumpEntryBundles.Length}",
-            $"; Relocations: {DumpFixupRecords.Length}",
-            $"; Imports: {DumpImportRecords.Length}",
-            ";"
+            $";     This file is **generated** at {DateTime.UtcNow.ToString(CultureInfo.InvariantCulture)}UTC",
+            $"; DOS Interrupt map:     {File.Exists(DecoderBridge.DosProgramInterruptsMapPath)}",
+            $"; Runtime Import Fixups: {DumpImportRecords.Length}",
+            $"; Entry Points:          {DumpEntryBundles.SelectMany(x => x.Entries).Count()}",
+            $"; Total Fixup Records:   {DumpFixupRecords.Length}",
+            
+            ";",
+            ".MODEL FLAT",
+            ""
         ]);
 
         Results.AddRange(ExternalEntryPointsExtension.AddSignatures(
@@ -145,6 +149,7 @@ public abstract class DecoderServiceBase
             TranslateObject(i + 1, obj);
         }
 
+        Results.Add("END");
         return Results.ToArray();
     }
 
@@ -333,8 +338,10 @@ public abstract class DecoderServiceBase
         {
             var effective = Convert.ToInt32(baseOffset + additive);
 
-            return ExportAt.GetValueOrDefault<(int objNum, int effective), string>((objNum, effective))
-                   ?? $"::far_0x{objNum:X4}{effective:X4}";
+            var export = ExportAt.GetValueOrDefault<(int objNum, int effective), string>((objNum, effective))
+                   ?? $"FAR0x{objNum:X4}{effective:X4}";
+            
+            return $"{DumpResidentNames[0].String}::{export}";
         }
 
         return fixup.TargetData switch
@@ -354,7 +361,7 @@ public abstract class DecoderServiceBase
         var mod = GetModuleName(impName.ModuleIndex);
         var proc = GetProcedureName(impName.NameOffset);
         return string.IsNullOrEmpty(proc)
-            ? $"{mod}::[import procedure table]+0x{impName.NameOffset:X4}"
+            ? $"{mod}::IMPROCTAB+0x{impName.NameOffset:X4}"
             : $"{mod}::{proc}";
     }
 
@@ -363,7 +370,7 @@ public abstract class DecoderServiceBase
         var idx = moduleIndex - 1;
         if (idx >= 0 && idx < DumpImportRecords.Length)
             return DumpImportRecords[idx].DllName;
-        return $"module_#{moduleIndex}";
+        return $"MOD#{moduleIndex}";
     }
 
     private string GetProcedureName(uint nameOffset)
@@ -378,19 +385,25 @@ public abstract class DecoderServiceBase
     private void TranslateObject(int objectNumber, FileObject rawObj)
     {
         var is32Bit = (GetObjectObjectFlagsMask(rawObj) & 0x2000) != 0;
-        var modeLabel = is32Bit ? "32-bit" : "16-bit";
         var suggestedName = GetObjectSuggestedName(rawObj);
         var isExecutable = GetObjectExecute(rawObj);
 
         var bytes = BuildObjectBytes(rawObj);
-        if (bytes is null || bytes.Length == 0) return;
+        if (bytes is null || bytes.Length == 0)
+        {
+            EmitObjectHeader(objectNumber, suggestedName, rawObj, is32Bit, 0, 0, 0);
+            Results.Add("; Uninitialized / BSS");
+            EmitObjectFooter(objectNumber);
+            return;
+        }
 
         if (!isExecutable && !DiscoverDataProcedures)
         {
-            EmitObjectHeader(objectNumber, suggestedName, rawObj, modeLabel, 0, 0, 0);
+            EmitObjectHeader(objectNumber, suggestedName, rawObj, is32Bit, 0, 0, 0);
             Results.Add("; Non-executable object, kept as data");
             RenderDataObjectWithExports(objectNumber, bytes);
             DumpObjectStrings(objectNumber, bytes);
+            EmitObjectFooter(objectNumber);
             return;
         }
 
@@ -402,41 +415,76 @@ public abstract class DecoderServiceBase
                 seeds.Add(0);
             else
             {
-                EmitObjectHeader(objectNumber, suggestedName, rawObj, modeLabel, 0, 0, 0);
+                EmitObjectHeader(objectNumber, suggestedName, rawObj, is32Bit, 0, 0, 0);
                 Results.Add("; No code references into this object, kept as data");
                 RenderDataObjectWithExports(objectNumber, bytes);
                 DumpObjectStrings(objectNumber, bytes);
+                EmitObjectFooter(objectNumber);
                 return;
             }
         }
-        // MULTIPASS (before MaxAnalysisPasses ends) with switch tables unwinding 
-        var (allInstructions, bridgeEntries, jumpTableBytes) = RunAnalysisLoop(bytes, seeds, is32Bit);
-        
+
+        // Pass #1: decode from seeds + jump table discovery
+        var (allInstructions, bridgeEntries, jumpTableBytes) = 
+            RunAnalysisLoop(bytes, seeds, is32Bit);
+
+        // Pass #2: recursive descent
         var reachable = RunRecursiveDescent(allInstructions, seeds, bytes, jumpTableBytes);
 
+        // Pass #3: filter unreachable
         var kept = allInstructions
             .Where(i => reachable.Contains(i.Offset))
             .OrderBy(i => i.Offset)
             .ToArray();
 
+        // Pass #4: local labels
         BuildObjectLocalLabels(objectNumber, kept);
 
         var prologues = CountAddedPrologues(bytes, seeds, isExecutable);
-        EmitObjectHeader(objectNumber, suggestedName, rawObj, modeLabel,
+        EmitObjectHeader(objectNumber, suggestedName, rawObj, is32Bit,
             bridgeEntries.Count, prologues, 0);
 
         if (kept.Length < allInstructions.Count)
             Results.Add($"; Filtered:    {allInstructions.Count - kept.Length} unreachable instructions removed");
 
-        // Рендер
+        // Pass #5: render
         var analysed = AnalyseInstructions(objectNumber, kept, bridgeEntries, ModeOf(is32Bit));
-        RenderObject(objectNumber, bytes, analysed);
+        RenderObject(objectNumber, bytes, is32Bit, analysed);
         DumpObjectStrings(objectNumber, bytes);
+        EmitObjectFooter(objectNumber);
 
         return;
 
-        ProcessorMode ModeOf(bool o) => o ? ProcessorMode.I386 : ProcessorMode.I286;
+        ProcessorMode ModeOf(bool o) => o 
+            ? ProcessorMode.I386 
+            : ProcessorMode.I286;
     }
+
+    private void EmitObjectHeader(int objectNumber, string name, FileObject obj, bool is32Bit, int exportCount,
+        int prologCount, int followed)
+    {
+        var modeLabel = is32Bit ? "32-bit" : "16-bit";
+        var useDirective = is32Bit ? "USE32" : "USE16";
+
+        Results.Add(";");
+        Results.Add($";         Object#{objectNumber} ({name})");
+        Results.Add($"; Memory Page: {GetObjectPageMapIndex(obj)} (uses {GetObjectPageMapEntries(obj)} pages)");
+        Results.Add($"; Followed:    {followed}");
+        Results.Add($"; Mode:        {modeLabel}");
+        Results.Add($"; Export:      {exportCount} module exports");
+        Results.Add($"; Prologues:   {prologCount}");
+        Results.Add(";");
+        Results.Add($"SEGMENT Object_{objectNumber} {useDirective} ; {name}");
+        Results.Add("");
+    }
+
+    private void EmitObjectFooter(int objectNumber)
+    {
+        Results.Add("");
+        Results.Add($"ENDS Object_{objectNumber}");
+        Results.Add("");
+    }
+    
     private void RenderDataObjectWithExports(int objNumber, byte[] bytes)
     {
         var sb = new StringBuilder();
@@ -620,10 +668,8 @@ public abstract class DecoderServiceBase
     {
         var ptrSize = is32Bit ? 4 : 2;
         var addedAny = false;
-
-        // Все известные границы кода (точки входа + начала достижимых инструкций),
-        // чтобы не прочитать сам код как элементы таблицы переходов.
         var knownCodeOffsets = new SortedSet<int>(entryPoints);
+        
         foreach (var off in reachable)
             knownCodeOffsets.Add(off);
 
@@ -735,7 +781,8 @@ public abstract class DecoderServiceBase
                 IsEntryPoint: entrySet.Contains(instr.Offset),
                 IsCallTarget: callTargets.Contains(instr.Offset),
                 Operands: analysedOps,
-                AllFixups: instrFixups));
+                AllFixups: instrFixups)
+            );
         }
 
         return result;
@@ -899,25 +946,37 @@ public abstract class DecoderServiceBase
     }
 
     private void RenderObject(
-        int objNumber, byte[] bytes,
+        int objNumber, byte[] bytes, bool is32Bit,
         IReadOnlyList<AnalysedInstruction> analysed)
     {
         var sb = new StringBuilder();
         var cover = 0;
+        string? currentProcName = null;
 
         var ordered = analysed.OrderBy(a => a.Instr.Offset).ToArray();
 
-        foreach (var analysedInstruction in ordered)
+        for (var idx = 0; idx < ordered.Length; idx++)
         {
+            var analysedInstruction = ordered[idx];
             var instr = analysedInstruction.Instr;
+            var startsNewProc = analysedInstruction.IsEntryPoint || analysedInstruction.IsCallTarget;
+
+            if ((startsNewProc || instr.Offset > cover) && currentProcName is not null)
+            {
+                sb.AppendLine($"{currentProcName} ENDP");
+                currentProcName = null;
+            }
 
             if (instr.Offset > cover)
                 RenderDataRange(sb, objNumber, bytes, cover, instr.Offset - cover);
 
             cover = Math.Max(cover, instr.Offset + instr.Length);
 
-            if (analysedInstruction.IsEntryPoint || analysedInstruction.IsCallTarget)
+            if (startsNewProc)
             {
+                var procName = analysedInstruction.Label
+                               ?? $"{ProcedurePrefix}_0x{objNumber:X4}{instr.Offset:X4}";
+
                 sb.AppendLine(";");
                 var header = (analysedInstruction.IsEntryPoint, analysedInstruction.IsCallTarget) switch
                 {
@@ -928,7 +987,15 @@ public abstract class DecoderServiceBase
                 sb.AppendLine(header);
                 sb.AppendLine(";");
 
-                sb.AppendLine($"{analysedInstruction.Label ?? $"{ProcedurePrefix}_0x{objNumber:X4}{instr.Offset:X4}"}:");
+                // NEAR / FAR concrete flags 16-bit code (32-bit FLAT is required just PROC)
+                var distance = is32Bit
+                    ? string.Empty
+                    : (ExportAt.ContainsKey((objNumber, instr.Offset)) || (objNumber == MainObj && instr.Offset == MainEip)
+                        ? " FAR"
+                        : " NEAR");
+
+                sb.AppendLine($"{procName} PROC{distance}");
+                currentProcName = procName;
             }
             else if (analysedInstruction.Label is not null)
             {
@@ -951,16 +1018,33 @@ public abstract class DecoderServiceBase
                         : $"{f.Symbol}+0x{f.ObjOff - instr.Offset:X}"))
                 : string.Empty;
 
-            var suffixComment = instr.Comment is not null && instr.Comment.Value.Length > 0 ? instr.Comment.Value : string.Empty;
+            var suffixComment = instr.Comment is not null && instr.Comment.Value.Length > 0
+                ? instr.Comment.Value
+                : string.Empty;
 
             sb.AppendLine($"\t{fullText,-30} ; {objNumber}:0x{instr.Offset:X4} {bytesStr}{suffixComment}{xrefComment}");
 
             if (instr.Flow.IsReturn)
-                sb.AppendLine("; returned to previous flow control");
+            {
+                var callerContext = currentProcName is not null
+                    ? $"{currentProcName} "
+                    : "previous ";
+                sb.AppendLine($"; returned back to {callerContext}control flow");
+            }
             else if (instr.Flow.IsTerminate)
-                sb.AppendLine($"Terminated ({suffixComment}");
+            {
+                sb.AppendLine($"; Terminated ({suffixComment})");
+            }
             else if (instr.Flow.IsHalt)
+            {
                 sb.AppendLine("; System Halted");
+            }
+        }
+
+        // Закрываем последнюю процедуру в объекте перед хвостом данных или ENDS
+        if (currentProcName is not null)
+        {
+            sb.AppendLine($"{currentProcName} ENDP");
         }
 
         if (cover < bytes.Length)

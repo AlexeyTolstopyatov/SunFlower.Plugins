@@ -16,8 +16,8 @@ namespace Sunflower.Mz.Services;
 public class DecoderFactory(ProcessorMode mode)
 {
     private readonly List<string> _results = [];
-    private const string EntryPointLabel = "main:";
-    private string OpcodeMapPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins", "opcodes286.json");
+    public const string MainProcedureLabel = "main:";
+    private string OpcodeMapPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "opcodes286.json");
     /// <summary>
     /// Parent process (SunFlower.Client) path holds by BaseDirectory. That's why it works
     /// </summary>
@@ -28,16 +28,6 @@ public class DecoderFactory(ProcessorMode mode)
     /// </summary>
     private void DecodeCom(ref string path)
     {
-        var file = File.ReadAllBytes(path);
-        _results.AddRange([
-            $"; SunFlower.MZ.dll for .COM files (at {DateTime.UtcNow})",
-            $"; [{path}]",
-            $"; Was disassembled for Intel {mode} including MS-DOS interrupt vectors",
-            "; Connected external resources:",
-            ";     - Interrupts: dos.json",
-            "",
-            EntryPointLabel
-        ]);
         // MS-DOS command always starts from zero.
         // If you expect to see something about PSP -> think different
         // File image contains raw bytes without any metadata like relocatable programs.
@@ -47,34 +37,19 @@ public class DecoderFactory(ProcessorMode mode)
         // Command file may contain x86 conditional jump to the entry point
         // And I'm expecting for this now. I specially tell you that zero file offset contains
         // near jump to the entry point. Or special commands block and further jump.
-        Decode(file, [0]);
+        var svc = MzDecoderService.ForCom(path, ProcessorMode.I186, OpcodeMapPath, InterruptMapPath);
+        _results.AddRange(svc.Analyse());
     }
+
     /// <summary>
     /// Applies for real-mode DOS executables
     /// </summary>
     /// <param name="path">image/program path</param>
     /// <param name="manager">program details</param>
-    /// <param name="entryPoint">main entry point</param>
-    /// <param name="stackPoint">possible start of stack</param>
-    private void DecodePages(ref string path, ref MzDumpManager manager, int entryPoint, int stackPoint)
+    private void DecodePages(ref string path, ref MzDumpManager manager)
     {
-        // Open target file and try to disassemble selected code block
-        var file = File.ReadAllBytes(path);
-        
-        _results.AddRange([
-            $"; SunFlower.MZ.dll for relocatable programs (at {DateTime.UtcNow})",
-            $"; [{path}]", 
-            $"; Was disassembled for Intel {mode} including MS-DOS interrupt vectors",
-            "; Connected external resources:",
-            File.Exists(InterruptMapPath) ? ";     - Interrupts: dos.json" : "\r\n[dos.json MAP IS MISSING]\r\n",
-            "; Defined MS-DOS program values from the program header are:",
-            $";    .CODE  offset: 0x{manager.CodeOffset:X}  (entry=0x{entryPoint:X})",
-            $";    .STACK offset: 0x{manager.StackOffset:X} (stack=0x{stackPoint:X})",
-            "",
-            EntryPointLabel
-        ]);
-        
-        Decode(file, [entryPoint]);
+        var svc = MzDecoderService.ForMz(path, manager, ProcessorMode.I186, OpcodeMapPath, InterruptMapPath);
+        _results.AddRange(svc.Analyse());
     }
 
     private void DecodeDosStub(ref string path, int start, long end)
@@ -87,7 +62,7 @@ public class DecoderFactory(ProcessorMode mode)
             "; Connected external resources:",
             ";     - Interrupts: dos.json",
             "",
-            EntryPointLabel
+            MainProcedureLabel
         ]);
         
         using var fileStream = File.OpenRead(path);
@@ -174,12 +149,13 @@ public class DecoderFactory(ProcessorMode mode)
             // address as does the logical address (S0+0000):0000 of the top of the program image.
             var stackOffset = manager.StackOffset + manager.Header.sp;
             // Given DOS program. CS:IP defined. Decode code segment starting from entry point
-            DecodePages(ref path, ref manager, (int)manager.CodePointer, (int)stackOffset);
+            DecodePages(ref path, ref manager);
         }
         catch (Exception e)
         {
+            // ignored
         }
-        
+
         return _results.ToArray();
     }
 }

@@ -42,7 +42,7 @@ public class DosExecutableFlower : IFlower
         name: "MZ Relocation Table",
         description: "Relocation table represents a sequence of far pointers"
     )]
-    public MzRelocation[] Relocations { get; private set; }
+    public MzRelocation[] Relocations { get; private set; } = [];
     
     public Task CreateAsync(string filePath) => Task.Run(() =>
     {

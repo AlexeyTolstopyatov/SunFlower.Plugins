@@ -49,7 +49,7 @@ public static class DecoderBridge
     /// (I don't sure but Windows VxDs are use DOS program interrupts), I stay it here.
     /// Physical/Virtual OS/2 Drivers are based on another architecture. (see. IBM_OS2_KERNELDRIVER_GUIDE.pdf)
     /// </summary>
-    private static string DosProgramInterruptsMapPath => 
+    public static string DosProgramInterruptsMapPath => 
         Path.Combine(AppContext.BaseDirectory, "Interrupt", "dos.json");
 
 }

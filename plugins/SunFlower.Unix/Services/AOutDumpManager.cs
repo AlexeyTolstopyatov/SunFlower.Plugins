@@ -66,7 +66,7 @@ public class AOutDumpManager(string path) : UnsafeManager
         Header = header;
         DebugPrint(FlowerReflection.DictionaryDataTable(header));
         // Verify that the magic number is known.
-        MagicWord magic = header.MagicWord;
+        var magic = header.MagicWord;
         if (!IsKnownMagic(magic))
             throw new InvalidDataException(
                 $"File is not a supported a.out image. (captured 0x{magic:X})");
@@ -152,8 +152,8 @@ public class AOutDumpManager(string path) : UnsafeManager
         if (strx == 0 || strx >= table.Length)
             return string.Empty;
 
-        int start = (int)strx;
-        int end = start;
+        var start = (int)strx;
+        var end = start;
         while (end < table.Length && table[end] != 0)
             ++end;
 
