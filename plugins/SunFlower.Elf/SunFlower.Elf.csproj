@@ -27,5 +27,8 @@
       <None Update="..\\..\\..\\SunFlower\\src\\Sunflower.Dasm\\opcodes386.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
+      <None Update="..\\..\\..\\SunFlower\\src\\Sunflower.Dasm\\opcodes8664.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 </Project>

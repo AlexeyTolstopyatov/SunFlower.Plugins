@@ -24,5 +24,5 @@ public class ElfDasmFlower : IFlower
         });
     }
 
-    public string Name => "Decode ELF32/ELF64 (x86)";
+    public string Name => "Decode Executable Linkable";
 }

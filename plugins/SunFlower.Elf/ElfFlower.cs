@@ -83,7 +83,7 @@ public class ElfFlower : IFlower
         DynamicEntries = dump.DynamicEntries;
     });
 
-    public string Name => "Dump ELF32/ELF64";
+    public string Name => "Dump Executable Linkable";
 }
 
 /// <summary> Simplified ELF header containment. </summary>

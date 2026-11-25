@@ -48,9 +48,7 @@ public sealed class ElfDecoderService
     private const int Amd64GlobalStart = 6;
     private const int Amd64JumpSlot = 7;
     private const int Amd64Relative = 8;
-
-    private string Intel86InterruptMap => Path.Combine(AppContext.BaseDirectory, "Interrupt", "linux86.json");
-
+    
     private readonly string _filePath;
     private readonly ElfDumpManager _dump;
     private readonly ElfImageDetails _info;
@@ -82,7 +80,8 @@ public sealed class ElfDecoderService
         _results.Clear();
 
         _results.Add(";");
-        _results.Add("; SunFlower.ELF disassembler");
+        _results.Add($";        This file is **generated** at {DateTime.UtcNow:u}");
+        _results.Add("; Sunflower.Elf.dll proceed the original image and emit this file; CoffeeLake (C) 2026-*");
         _results.Add($"; Class:     {(_is64Bit ? "ELF64" : "ELF32")}");
         _results.Add($"; Machine:   {_info.Machine}");
         _results.Add($"; Type:      {_info.Type}");
@@ -119,7 +118,7 @@ public sealed class ElfDecoderService
             var bytes = ReadSectionBytes(section);
             if (bytes.Length == 0)
             {
-                _results.Add($";");
+                _results.Add(";");
                 _results.Add($"; Section #{index} ({section.Name}) is empty, skipped.");
                 continue;
             }
@@ -135,7 +134,7 @@ public sealed class ElfDecoderService
         var seeds = CollectSeeds(ds.Number, ds.Section, ds.Bytes);
 
         // Fallback for small executable sections without symbols (.init, .fini, .plt)
-        if (seeds.Count == 0 && ds.Bytes.Length <= 4096)
+        if (seeds.Count == 0 && ds.Bytes.Length <= 0x1000)
             seeds.Add(0);
 
         if (seeds.Count == 0)
@@ -143,10 +142,16 @@ public sealed class ElfDecoderService
             _results.Add(";");
             _results.Add($"; Section #{ds.Number} ({ds.Section.Name}): no seeds found, kept as data.");
             _results.Add(";");
+            
+            _results.Add($"SECTION {ds.Section.Name}");
             var sbEmpty = new StringBuilder();
+            
             RenderDataRange(sbEmpty, ds.Number, ds.Bytes, 0, ds.Bytes.Length);
             _results.Add(sbEmpty.ToString());
+            
             DumpSectionStrings(ds.Number, ds.Bytes);
+            
+            _results.Add("ENDS");
             return;
         }
 
@@ -158,13 +163,19 @@ public sealed class ElfDecoderService
         }
         catch (Exception ex)
         {
+            _results.Add($"SECTION {ds.Section.Name}");
             _results.Add(";");
-            _results.Add($"; Section #{ds.Number} ({ds.Section.Name}): decode failed ({ex.Message}), kept as data.");
+            _results.Add($"; Section #{ds.Number} wasn't completely retranslated.");
+            _results.Add($"; Reason: {ex.Message}");
             _results.Add(";");
+
             var sbError = new StringBuilder();
+            
             RenderDataRange(sbError, ds.Number, ds.Bytes, 0, ds.Bytes.Length);
             _results.Add(sbError.ToString());
             DumpSectionStrings(ds.Number, ds.Bytes);
+            
+            _results.Add("ENDS");
             return;
         }
 
@@ -179,7 +190,11 @@ public sealed class ElfDecoderService
 
         BuildLocalLabels(ds.Number, kept);
 
-        var filled = ds with { Instructions = instructions, EntryPoints = bridgeEntries };
+        var filled = ds with
+        {
+            Instructions = instructions, 
+            EntryPoints = bridgeEntries
+        };
         RenderSection(filled, kept);
         DumpSectionStrings(ds.Number, ds.Bytes);
     }
@@ -188,15 +203,23 @@ public sealed class ElfDecoderService
     {
         foreach (var sym in _dump.Symbols)
         {
-            if (string.IsNullOrEmpty(sym.Name)) continue;
-            if (sym.SectionIndex == 0 || sym.SectionIndex >= _dump.Sections.Length) continue;
+            if (string.IsNullOrEmpty(sym.Name)) 
+                continue;
+            
+            if (sym.SectionIndex == 0 || sym.SectionIndex >= _dump.Sections.Length) 
+                continue;
 
             var section = _dump.Sections[sym.SectionIndex];
-            if (!section.IsAllocated) continue;
-            if (sym.Value < section.Address) continue;
+            
+            if (!section.IsAllocated) 
+                continue;
+            
+            if (sym.Value < section.Address) 
+                continue;
 
             var off = sym.Value - section.Address;
-            if (off >= section.Size) continue;
+            if (off >= section.Size) 
+                continue;
 
             _symbolAt[(sym.SectionIndex, (int)off)] = sym.Name;
             _symbolByVa[sym.Value] = sym.Name;
@@ -218,13 +241,20 @@ public sealed class ElfDecoderService
         for (var i = 0; i < dynSyms.Count; i++)
         {
             var sym = dynSyms[i];
-            if (string.IsNullOrEmpty(sym.Name)) continue;
-            if (sym.SectionIndex == 0 || sym.SectionIndex >= _dump.Sections.Length) continue;
+            if (string.IsNullOrEmpty(sym.Name)) 
+                continue;
+            if (sym.SectionIndex == 0 || sym.SectionIndex >= _dump.Sections.Length) 
+                continue;
+            
             var sec = _dump.Sections[sym.SectionIndex];
-            if (!sec.IsAllocated) continue;
-            if (sym.Value < sec.Address) continue;
+            if (!sec.IsAllocated) 
+                continue;
+            if (sym.Value < sec.Address) 
+                continue;
+            
             var off = sym.Value - sec.Address;
-            if (off >= sec.Size) continue;
+            if (off >= sec.Size) 
+                continue;
 
             var key = ((int)sym.SectionIndex, (int)off);
             if (!_symbolAt.ContainsKey(key))
@@ -257,13 +287,15 @@ public sealed class ElfDecoderService
                 {
                     rOffset = ReadU64(relaBytes, at);
                     rInfo = ReadU64(relaBytes, at + 8);
-                    if (isRela) addend = (long)ReadU64(relaBytes, at + 16);
+                    if (isRela) 
+                        addend = (long)ReadU64(relaBytes, at + 16);
                 }
                 else
                 {
                     rOffset = ReadU32(relaBytes, at);
                     rInfo = ReadU32(relaBytes, at + 4);
-                    if (isRela) addend = (int)ReadU32(relaBytes, at + 8);
+                    if (isRela) 
+                        addend = (int)ReadU32(relaBytes, at + 8);
                 }
 
                 var relType = _is64Bit ? (int)(rInfo & 0xFFFFFFFF) : (int)(rInfo & 0xFF);
@@ -344,15 +376,18 @@ public sealed class ElfDecoderService
 
         AddSeed(_info.EntryPoint, section, bytes, seeds);
 
-        // 2. FUNC symbols in this section
+        // FUNC symbols in this section
         foreach (var sym in _dump.Symbols)
         {
-            if (sym.Type != ElfSymbolType.Func) continue;
-            if (sym.SectionIndex != sectionIndex) continue;
+            if (sym.Type != ElfSymbolType.Func) 
+                continue;
+            if (sym.SectionIndex != sectionIndex) 
+                continue;
+            
             AddSeed(sym.Value, section, bytes, seeds);
         }
 
-        // 3. Dynamic entry function pointers
+        // Dynamic entry function pointers
         foreach (var dyn in _dump.DynamicEntries)
         {
             switch ((long)dyn.Tag)
@@ -375,9 +410,11 @@ public sealed class ElfDecoderService
 
     private static void AddSeed(ulong va, ElfSection section, byte[] bytes, SortedSet<int> seeds)
     {
-        if (va < section.Address) return;
+        if (va < section.Address) 
+            return;
         var delta = va - section.Address;
-        if (delta >= (ulong)bytes.Length) return;
+        if (delta >= (ulong)bytes.Length) 
+            return;
         seeds.Add((int)delta);
     }
 
@@ -394,7 +431,8 @@ public sealed class ElfDecoderService
                 break;
             }
         }
-        if (arraySection is null) return;
+        if (arraySection is null) 
+            return;
 
         var arrayBytes = ReadSectionBytes(arraySection);
         var ptrSize = _is64Bit ? 8 : 4;
@@ -412,7 +450,7 @@ public sealed class ElfDecoderService
     
     private (IReadOnlyList<DecodedInstruction>, SortedSet<int>) Decode(byte[] bytes, SortedSet<int> seeds)
     {
-        var (instrs, _, entries) = ElfDecoderBridge.Decode32(bytes, [.. seeds]);
+        var (instrs, _, entries) = ElfDecoderBridge.Decode(bytes, [.. seeds], _is64Bit);
         return (instrs, entries);
     }
 
@@ -421,7 +459,8 @@ public sealed class ElfDecoderService
         IEnumerable<int> seeds)
     {
         var byOffset = new Dictionary<int, DecodedInstruction>(instructions.Count);
-        foreach (var i in instructions) byOffset.TryAdd(i.Offset, i);
+        foreach (var i in instructions) 
+            byOffset.TryAdd(i.Offset, i);
 
         var reachable = new HashSet<int>();
         var worklist = new Stack<int>(seeds);
@@ -429,8 +468,11 @@ public sealed class ElfDecoderService
         while (worklist.Count > 0)
         {
             var off = worklist.Pop();
-            if (!reachable.Add(off)) continue;
-            if (!byOffset.TryGetValue(off, out var instr)) continue;
+            if (!reachable.Add(off)) 
+                continue;
+            
+            if (!byOffset.TryGetValue(off, out var instr)) 
+                continue;
 
             if (instr.Flow.IsReturn || instr.Flow.IsTerminate || instr.Flow.IsHalt)
                 continue;
@@ -472,22 +514,26 @@ public sealed class ElfDecoderService
                 if (_symbolAt.ContainsKey(key)) continue;
                 if (_localLabelAt.ContainsKey(key)) continue;
                 _localLabelAt[key] = isCall
-                    ? $"sub_{sectionIndex:X2}_{t:X4}"
-                    : $"loc_{sectionIndex:X2}_{t:X4}";
+                    ? $"{ProcedurePrefix}_0x{sectionIndex:X2}_0x{t:X4}"
+                    : $"{LabelPrefix}_0x{t:X4}";
             }
         }
     }
-    
+
+    private const string LabelPrefix = "procedure";
+    private const string ProcedurePrefix = "label";
+
     private void RenderSection(DecodedSection ds, IReadOnlyList<DecodedInstruction> instructions)
     {
         var sb = new StringBuilder();
+        sb.AppendLine($"SECTION .{ds.Section.Name}");
+        
         sb.AppendLine(";");
-        sb.AppendLine($"; Section #{ds.Number}: {ds.Section.Name}");
         sb.AppendLine($"; Type: {ds.Section.Type}, Flags: {ds.Section.Flags}");
         sb.AppendLine($"; Address: 0x{ds.Section.Address:X}, Size: 0x{ds.Section.Size:X}");
         sb.AppendLine($"; Kept: {instructions.Count} / {ds.Instructions!.Count} instructions");
         sb.AppendLine(";");
-
+        
         var cover = 0;
         foreach (var instr in instructions)
         {
@@ -497,7 +543,9 @@ public sealed class ElfDecoderService
             cover = Math.Max(cover, instr.Offset + instr.Length);
 
             var label = ResolveLabel(ds.Number, instr.Offset);
-            if (label is not null) sb.AppendLine($"{label}:");
+            
+            if (label is not null) 
+                sb.AppendLine($"{label}:");
 
             var operandText = FormatOperands(ds.Number, ds.Section, instr);
             var fullText = string.IsNullOrEmpty(operandText)
@@ -579,7 +627,8 @@ public sealed class ElfDecoderService
     {
         if (string.IsNullOrEmpty(memText)) return null;
 
-        // RIP-relative (x86-64): [rip+0x...] or [rip-0x...] (or with extra base/index - give up)
+        // RIP-relative x86-64
+        // [rip+0x...] or [rip-0x...] (or with extra base/index - give up)
         var idx = memText.IndexOf("rip", StringComparison.OrdinalIgnoreCase);
         if (idx >= 0)
         {
@@ -587,7 +636,8 @@ public sealed class ElfDecoderService
             var plus = rest.IndexOf('+');
             var minus = rest.IndexOf('-');
             var sign = plus >= 0 ? 1 : minus >= 0 ? -1 : 0;
-            if (sign == 0) return null;
+            if (sign == 0) 
+                return null;
             var cut = sign > 0 ? plus : minus;
             var dispStr = rest[(cut + 1)..].TrimEnd(']', ' ');
             if (!ulong.TryParse(dispStr.Replace("0x", ""),
@@ -598,7 +648,8 @@ public sealed class ElfDecoderService
             return sign > 0 ? rip + disp : rip - disp;
         }
 
-        // Absolute: [0x...]
+        // Absolute
+        // [0x...]
         if (memText.StartsWith("[0x", StringComparison.OrdinalIgnoreCase))
         {
             var end = memText.IndexOf(']');

@@ -32,5 +32,5 @@ public class PortableExecutableDasmFlower : IFlower
         });
     }
 
-    public string Name => "Decode Portable Executable (i386)";
+    public string Name => "Decode Portable Executable";
 }

@@ -211,18 +211,10 @@ public sealed class PeDecoderService : DirectoryManager
             {
                 var slotVa = _info.ImageBase + (uint)func.SlotRva;
                 _results.Add($"; RVA {func.SlotRva:X8}  VA {slotVa:X8}  {mod.Name}!{func.Name}" +
-                             $"{(func.IsOrdinal ? $" (ordinal {func.Ordinal})" : string.Empty)}");
+                             $"{(func.IsOrdinal ? $" (@{func.Ordinal})" : string.Empty)}");
             }
 
             _results.Add(";");
-        }
-
-        if (_is64Bit)
-        {
-            _results.Add(";");
-            _results.Add("; PE32+ (x64): code decoding is not implemented yet.");
-            _results.Add(";");
-            return _results.ToArray();
         }
 
         BuildStringMap();
@@ -495,7 +487,7 @@ public sealed class PeDecoderService : DirectoryManager
     private (IReadOnlyList<DecodedInstruction> instructions, SortedSet<int> entrySet, int followed)
         RunAnalysisLoop(byte[] bytes, SortedSet<int> entryPoints)
     {
-        var (instructions, _, entries) = PeDecoderBridge.Decode32(bytes, [.. entryPoints]);
+        var (instructions, _, entries) = PeDecoderBridge.Decode(bytes, [.. entryPoints], _is64Bit);
         return (instructions, entries, 0);
     }
 
